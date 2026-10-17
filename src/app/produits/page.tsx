@@ -339,9 +339,19 @@ export default function ProduitsPage() {
                 onChange={(e) => setFormCategorie(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-400"
               >
-                <option value="Vêtements Homme">Vêtements Homme</option>
-                <option value="Chaussures & Souliers">Chaussures & Souliers</option>
-                <option value="Accessoires & Maroquinerie">Accessoires & Maroquinerie</option>
+                <option value="Accessoires">Accessoires</option>
+                <option value="Tapis">Tapis</option>
+                <option value="Rideaux">Rideaux</option>
+                <option value="Barres & Accessoires pour Rideaux">Barres & Accessoires pour Rideaux</option>
+                <option value="Panneaux Muraux">Panneaux Muraux</option>
+                <option value="Draps & Linge de Lit">Draps & Linge de Lit</option>
+                <option value="Couettes & Couvertures">Couettes & Couvertures</option>
+                <option value="Oreillers & Coussins">Oreillers & Coussins</option>
+                <option value="Housses de Canapé & Fauteuil">Housses de Canapé & Fauteuil</option>
+                <option value="Décoration Murale">Décoration Murale</option>
+                <option value="Luminaires & Lampes">Luminaires & Lampes</option>
+                <option value="Vases & Objets Décoratifs">Vases & Objets Décoratifs</option>
+                <option value="Accessoires de Décoration Maison">Accessoires de Décoration Maison</option>
               </select>
             </div>
 

@@ -19,7 +19,7 @@ model User {
   role         String   @default("VENDEUR") // ADMIN, GERANT, VENDEUR
   active       Boolean  @default(true)
   pointVenteId Int?     @map("point_vente_id")
-  ville        String?  @default("Bamako")
+  ville        String?  @default("Kankan")
   dateCreation DateTime @default(now()) @map("date_creation")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
@@ -42,7 +42,7 @@ model PointDeVente {
   id           Int      @id @default(autoincrement())
   nom          String
   codeBoutique String   @unique @map("code_boutique") // Ex: BAM-01, SIK-01, SEG-01
-  ville        String   @default("Bamako") // Bamako, Sikasso, Ségou, Kayes, etc.
+  ville        String   @default("Kankan") // Kankan, Sikasso, Ségou, Kayes, etc.
   adresse      String?
   telephone    String?
   email        String?
@@ -224,7 +224,7 @@ model Client {
   telephone    String?
   email        String?
   adresse      String?
-  ville        String?  @default("Bamako")
+  ville        String?  @default("Kankan")
   soldeDette   Float    @default(0.0) @map("solde_dette")
   limiteCredit Float    @default(0.0) @map("limite_credit")
   notes        String?
@@ -244,7 +244,7 @@ model Fournisseur {
   telephone       String?
   email           String?
   adresse         String?
-  ville           String?  @default("Bamako")
+  ville           String?  @default("Kankan")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 

@@ -61,18 +61,18 @@ export default function LoginPage() {
         i % 4 === 0
           ? 'rgba(251,191,36,0.9)'
           : i % 4 === 1
-          ? 'rgba(59,130,246,0.8)'
-          : i % 4 === 2
-          ? 'rgba(168,85,247,0.8)'
-          : 'rgba(16,185,129,0.8)',
+            ? 'rgba(59,130,246,0.8)'
+            : i % 4 === 2
+              ? 'rgba(168,85,247,0.8)'
+              : 'rgba(16,185,129,0.8)',
       boxShadow:
         i % 4 === 0
           ? '0 0 10px rgba(251,191,36,0.8)'
           : i % 4 === 1
-          ? '0 0 10px rgba(59,130,246,0.8)'
-          : i % 4 === 2
-          ? '0 0 10px rgba(168,85,247,0.8)'
-          : '0 0 10px rgba(16,185,129,0.8)',
+            ? '0 0 10px rgba(59,130,246,0.8)'
+            : i % 4 === 2
+              ? '0 0 10px rgba(168,85,247,0.8)'
+              : '0 0 10px rgba(16,185,129,0.8)',
       animateX: Math.random() * 60 - 30,
       duration: Math.random() * 6 + 4,
       delay: Math.random() * 5,
@@ -459,7 +459,7 @@ export default function LoginPage() {
                   transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                 />
                 <Image
-                  src="/img/logo.jpg"
+                  src="/img/logo.png"
                   alt="Logo Sidibe Services"
                   fill
                   sizes="(max-width: 640px) 96px, 112px"
@@ -556,9 +556,11 @@ export default function LoginPage() {
               </motion.button>
             </form>
           </div>
-
           <div className="pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
-            Système multi-villes • Sidibe Services v2.0
+            Développer par COTECH SERVICES
+          </div>
+          <div className="pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
+            Système multi-points de vente • Sidibe Services v1.0
           </div>
         </div>
       </motion.div>

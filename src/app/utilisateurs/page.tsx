@@ -173,8 +173,8 @@ function UserModal({
           </div>
 
           <SelectField label="Rôle *" id="role" value={form.role} onChange={set('role')}>
-            <option value="VENDEUR">Vendeur / Caissier</option>
-            <option value="GERANT">Gérant de boutique</option>
+            <option value="VENDEUR">Vendeur</option>
+            <option value="GERANT">Gérant</option>
             <option value="ADMIN">Administrateur Général</option>
           </SelectField>
 
@@ -201,8 +201,8 @@ function UserModal({
           </SelectField>
 
           <div className="grid grid-cols-2 gap-3">
-            <InputField label="Téléphone" id="tel" value={form.telephone} onChange={set('telephone')} placeholder="+223 XX XX XX XX" />
-            <InputField label="Email" id="email" type="email" value={form.email} onChange={set('email')} placeholder="nom@sidibe.ml" />
+            <InputField label="Téléphone" id="tel" value={form.telephone} onChange={set('telephone')} placeholder="Ex :622 48 81 61" />
+            <InputField label="Email" id="email" type="email" value={form.email} onChange={set('email')} placeholder="Ex : nom@sidibe.ml" />
           </div>
 
           <InputField label="Profil / Poste" id="profil" value={form.profil} onChange={set('profil')} placeholder="Ex: Caissier Principal" />

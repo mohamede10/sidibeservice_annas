@@ -236,7 +236,7 @@ function PDVFormModal({
             <InputField
               label="Téléphone"
               id="telephone"
-              placeholder="+223 XX XX XX XX"
+              placeholder="Ex :622 48 81 61"
               value={form.telephone}
               onChange={(e) => setForm((f) => ({ ...f, telephone: e.target.value }))}
             />
