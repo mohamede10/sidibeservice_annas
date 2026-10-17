@@ -17,11 +17,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className="dark">
+    <html lang="fr" className="dark" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/logo.jpg" />
       </head>
-      <body className="antialiased bg-[#090d16] text-slate-100">
+      <body className="antialiased bg-[#090d16] text-slate-100" suppressHydrationWarning>
         <AuthProvider>
           <DashboardLayout>{children}</DashboardLayout>
         </AuthProvider>

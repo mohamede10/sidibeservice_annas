@@ -178,10 +178,25 @@ function UserModal({
             <option value="ADMIN">Administrateur Général</option>
           </SelectField>
 
-          <SelectField label="Point de vente affecté" id="pdv" value={form.pointVenteId} onChange={set('pointVenteId')}>
+          <SelectField
+            label="Point de vente affecté"
+            id="pdv"
+            value={form.pointVenteId}
+            onChange={(e) => {
+              const selectedId = e.target.value;
+              const pdv = pdvList.find((p) => String(p.id) === selectedId);
+              setForm((f) => ({
+                ...f,
+                pointVenteId: selectedId,
+                ville: pdv ? pdv.ville : f.ville,
+              }));
+            }}
+          >
             <option value="">-- Aucun (accès global ADMIN) --</option>
             {pdvList.map((p) => (
-              <option key={p.id} value={p.id}>{p.nom} ({p.codeBoutique}) — {p.ville}</option>
+              <option key={p.id} value={p.id}>
+                {p.nom} ({p.codeBoutique}) — {p.ville}
+              </option>
             ))}
           </SelectField>
 

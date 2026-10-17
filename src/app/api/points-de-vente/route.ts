@@ -74,3 +74,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, nom, codeBoutique, ville, adresse, telephone, email, gerantId, active } = body;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: 'ID requis' }, { status: 400 });
+    }
+
+    const updated = await prisma.pointDeVente.update({
+      where: { id: parseInt(id) },
+      data: {
+        ...(nom !== undefined && { nom }),
+        ...(codeBoutique !== undefined && { codeBoutique: codeBoutique.toUpperCase() }),
+        ...(ville !== undefined && { ville }),
+        ...(adresse !== undefined && { adresse: adresse || null }),
+        ...(telephone !== undefined && { telephone: telephone || null }),
+        ...(email !== undefined && { email: email || null }),
+        ...(gerantId !== undefined && { gerantId: gerantId ? parseInt(gerantId) : null }),
+        ...(active !== undefined && { active }),
+      },
+      include: {
+        gerant: { select: { id: true, nom: true, login: true } },
+        vendeurs: { select: { id: true, nom: true, login: true, role: true, active: true } },
+      },
+    });
+
+    return NextResponse.json({ success: true, pointDeVente: updated });
+  } catch (error: unknown) {
+    console.error('Erreur API Points de Vente PATCH:', error);
+    const msg = error instanceof Error && (error as NodeJS.ErrnoException).code === 'P2002'
+      ? 'Ce code boutique existe déjà'
+      : 'Erreur modification point de vente';
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
+  }
+}

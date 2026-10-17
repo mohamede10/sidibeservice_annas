@@ -16,6 +16,7 @@ export interface UserSession {
 
 interface AuthContextType {
   user: UserSession | null;
+  isLoadingSession: boolean;
   activePointVenteId: number | null; // null means 'Tous les points de vente' (Admin only)
   activePointVenteNom: string;
   login: (userData: UserSession) => void;
@@ -28,35 +29,30 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const DEFAULT_ADMIN: UserSession = {
-  id: 1,
-  nom: 'Direction Générale Sidibé',
-  login: 'admin',
-  role: 'ADMIN',
-  profil: 'Administrateur Général (Accès Multi-Villes)',
-  ville: 'Bamako',
-  pointVenteId: 1,
-  pointVenteNom: 'Siège & Agence Hamdallaye ACI',
-  pointVenteCode: 'BAM-01',
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserSession | null>(DEFAULT_ADMIN);
+  const [user, setUser] = useState<UserSession | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
   const [activePointVenteId, setActivePointVenteId] = useState<number | null>(null);
   const [activePointVenteNom, setActivePointVenteNom] = useState<string>('Vue Consolidée (Toutes les Villes)');
 
   useEffect(() => {
-    // Load persisted user session from localStorage
-    const saved = localStorage.getItem('sidibe_user_session');
-    if (saved) {
-      try {
+    // Charger la session utilisateur persistée depuis localStorage
+    try {
+      const saved = localStorage.getItem('sidibe_user_session');
+      if (saved) {
         const parsed = JSON.parse(saved);
-        setUser(parsed);
-        if (parsed.role !== 'ADMIN' && parsed.pointVenteId) {
-          setActivePointVenteId(parsed.pointVenteId);
-          setActivePointVenteNom(parsed.pointVenteNom || 'Ma Boutique');
+        if (parsed && parsed.login) {
+          setUser(parsed);
+          if (parsed.role !== 'ADMIN' && parsed.pointVenteId) {
+            setActivePointVenteId(parsed.pointVenteId);
+            setActivePointVenteNom(parsed.pointVenteNom || 'Ma Boutique');
+          }
         }
-      } catch {}
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingSession(false);
     }
   }, []);
 
@@ -75,6 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('sidibe_user_session');
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
   };
 
   const setActivePointVente = (pvId: number | null, pvNom?: string) => {
@@ -90,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        isLoadingSession,
         activePointVenteId,
         activePointVenteNom,
         login,

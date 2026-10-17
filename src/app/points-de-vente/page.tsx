@@ -22,6 +22,10 @@ import {
   UserPlus,
   Store,
   Globe,
+  Pause,
+  Play,
+  Power,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52,15 +56,25 @@ interface PointDeVente {
   };
 }
 
-const VILLES_MALI = ['Bamako', 'Sikasso', 'Ségou', 'Mopti', 'Kayes', 'Koutiala', 'Gao', 'Kidal', 'Tombouctou', 'Autre'];
+const VILLES_GUINEE = [
+  'Conakry', 'Kindia', 'Labé', 'Kankan', 'Nzérékoré', 'Boké',
+  'Mamou', 'Faranah', 'Coyah', 'Dubréka', 'Fria', 'Kamsar',
+  'Guéckédou', 'Macenta', 'Kissidougou', 'Siguiri', 'Kérouané',
+  'Dinguiraye', 'Télimélé', 'Pita', 'Dalaba', 'Tougué', 'Koubia',
+  'Lélouma', 'Mali (Guinée)', 'Gaoual', 'Koundara', 'Boffa', 'Forécariah', 'Autre'
+];
 
 const VILLE_COLORS: Record<string, string> = {
-  Bamako: 'from-amber-500/20 to-amber-600/10 border-amber-500/30 text-amber-300',
-  Sikasso: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30 text-emerald-300',
-  Ségou: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-300',
-  Mopti: 'from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-300',
-  Kayes: 'from-rose-500/20 to-rose-600/10 border-rose-500/30 text-rose-300',
-  Koutiala: 'from-teal-500/20 to-teal-600/10 border-teal-500/30 text-teal-300',
+  Conakry: 'from-amber-500/20 to-amber-600/10 border-amber-500/30 text-amber-300',
+  Kindia: 'from-emerald-500/20 to-emerald-600/10 border-emerald-500/30 text-emerald-300',
+  Labé: 'from-blue-500/20 to-blue-600/10 border-blue-500/30 text-blue-300',
+  Kankan: 'from-purple-500/20 to-purple-600/10 border-purple-500/30 text-purple-300',
+  'Nzérékoré': 'from-rose-500/20 to-rose-600/10 border-rose-500/30 text-rose-300',
+  Boké: 'from-teal-500/20 to-teal-600/10 border-teal-500/30 text-teal-300',
+  Mamou: 'from-indigo-500/20 to-indigo-600/10 border-indigo-500/30 text-indigo-300',
+  Faranah: 'from-orange-500/20 to-orange-600/10 border-orange-500/30 text-orange-300',
+  Coyah: 'from-cyan-500/20 to-cyan-600/10 border-cyan-500/30 text-cyan-300',
+  Siguiri: 'from-yellow-500/20 to-yellow-600/10 border-yellow-500/30 text-yellow-300',
 };
 
 function InputField({ label, id, ...props }: { label: string; id: string } & React.InputHTMLAttributes<HTMLInputElement>) {
@@ -92,8 +106,25 @@ function SelectField({ label, id, children, ...props }: { label: string; id: str
 }
 
 // Modal de création d'un point de vente
-function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [form, setForm] = useState({ nom: '', codeBoutique: '', ville: 'Bamako', adresse: '', telephone: '', email: '' });
+// Modal de création ou modification d'un point de vente
+function PDVFormModal({
+  pdv,
+  onClose,
+  onSuccess,
+}: {
+  pdv?: PointDeVente | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const isEdit = !!pdv;
+  const [form, setForm] = useState({
+    nom: pdv?.nom || '',
+    codeBoutique: pdv?.codeBoutique || '',
+    ville: pdv?.ville || 'Conakry',
+    adresse: pdv?.adresse || '',
+    telephone: pdv?.telephone || '',
+    email: pdv?.email || '',
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -102,17 +133,18 @@ function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
     setLoading(true);
     setError('');
     try {
+      const payload = isEdit ? { id: pdv!.id, ...form } : form;
       const res = await fetch('/api/points-de-vente', {
-        method: 'POST',
+        method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (json.success) {
         onSuccess();
         onClose();
       } else {
-        setError(json.error || 'Erreur lors de la création');
+        setError(json.error || 'Erreur lors de l\'enregistrement');
       }
     } catch {
       setError('Erreur réseau');
@@ -121,11 +153,15 @@ function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
     }
   };
 
-  // Auto-generate code boutique
+  // Auto-generate code boutique (uniquement en création)
   const handleVilleChange = (ville: string) => {
-    const prefix = ville.substring(0, 3).toUpperCase();
-    const code = form.codeBoutique.match(/^[A-Z]{3}-/) ? form.codeBoutique.replace(/^[A-Z]{3}/, prefix) : `${prefix}-`;
-    setForm((f) => ({ ...f, ville, codeBoutique: code }));
+    if (!isEdit) {
+      const prefix = ville.substring(0, 3).toUpperCase();
+      const code = form.codeBoutique.match(/^[A-Z]{3}-/) ? form.codeBoutique.replace(/^[A-Z]{3}/, prefix) : `${prefix}-`;
+      setForm((f) => ({ ...f, ville, codeBoutique: code }));
+    } else {
+      setForm((f) => ({ ...f, ville }));
+    }
   };
 
   return (
@@ -146,11 +182,15 @@ function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              <Store className="w-5 h-5" />
+              {isEdit ? <Edit3 className="w-5 h-5" /> : <Store className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-xl font-black text-white">Nouveau Point de Vente</h2>
-              <p className="text-xs text-slate-400">Créer une boutique ou agence</p>
+              <h2 className="text-xl font-black text-white">
+                {isEdit ? 'Modifier le Point de Vente' : 'Nouveau Point de Vente'}
+              </h2>
+              <p className="text-xs text-slate-400">
+                {isEdit ? `Édition de ${pdv!.nom} (${pdv!.codeBoutique})` : 'Créer une boutique ou agence'}
+              </p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
@@ -174,7 +214,7 @@ function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
               value={form.ville}
               onChange={(e) => handleVilleChange(e.target.value)}
             >
-              {VILLES_MALI.map((v) => <option key={v} value={v}>{v}</option>)}
+              {VILLES_GUINEE.map((v) => <option key={v} value={v}>{v}</option>)}
             </SelectField>
             <InputField
               label="Code Boutique *"
@@ -231,7 +271,9 @@ function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
               className="flex-1 py-3 rounded-2xl btn-gold font-bold flex items-center justify-center gap-2"
             >
               {loading ? (
-                <><RefreshCw className="w-4 h-4 animate-spin" />Création...</>
+                <><RefreshCw className="w-4 h-4 animate-spin" />Enregistrement...</>
+              ) : isEdit ? (
+                <><Edit3 className="w-4 h-4" />Enregistrer</>
               ) : (
                 <><Plus className="w-4 h-4" />Créer la Boutique</>
               )}
@@ -244,7 +286,19 @@ function CreatePDVModal({ onClose, onSuccess }: { onClose: () => void; onSuccess
 }
 
 // Modal de détails d'un point de vente
-function PDVDetailModal({ pdv, onClose }: { pdv: PointDeVente; onClose: () => void }) {
+function PDVDetailModal({
+  pdv,
+  onClose,
+  onEdit,
+  onTogglePause,
+  isAdmin,
+}: {
+  pdv: PointDeVente;
+  onClose: () => void;
+  onEdit: (pdv: PointDeVente) => void;
+  onTogglePause: (pdv: PointDeVente) => void;
+  isAdmin: boolean;
+}) {
   const villeColor = VILLE_COLORS[pdv.ville] || 'from-slate-500/20 to-slate-600/10 border-slate-500/30 text-slate-300';
 
   return (
@@ -271,7 +325,12 @@ function PDVDetailModal({ pdv, onClose }: { pdv: PointDeVente; onClose: () => vo
               </div>
               <div>
                 <h2 className="text-xl font-black text-white">{pdv.nom}</h2>
-                <span className="text-xs font-bold opacity-80 font-mono">{pdv.codeBoutique}</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs font-bold opacity-80 font-mono">{pdv.codeBoutique}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${pdv.active ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-rose-500/30'}`}>
+                    {pdv.active ? '● Boutique Active' : '⏸ En Pause (Suspendue)'}
+                  </span>
+                </div>
               </div>
             </div>
             <button onClick={onClose} className="p-2 rounded-xl bg-black/30 text-white/70 hover:text-white transition-colors">
@@ -281,12 +340,23 @@ function PDVDetailModal({ pdv, onClose }: { pdv: PointDeVente; onClose: () => vo
         </div>
 
         <div className="p-6 space-y-5">
+          {/* Alerte si le point de vente est en pause */}
+          {!pdv.active && (
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 text-amber-400" />
+              <div>
+                <p className="font-bold">Boutique en pause</p>
+                <p className="text-slate-400">Les opérations et ventes de cette boutique sont temporairement suspendues.</p>
+              </div>
+            </div>
+          )}
+
           {/* Infos */}
           <div className="space-y-2">
             {pdv.ville && (
               <div className="flex items-center gap-2 text-sm text-slate-300">
                 <Globe className="w-4 h-4 text-amber-400" />
-                <span>{pdv.ville}, Mali</span>
+                <span>{pdv.ville}, Guinée</span>
               </div>
             )}
             {pdv.adresse && (
@@ -363,6 +433,39 @@ function PDVDetailModal({ pdv, onClose }: { pdv: PointDeVente; onClose: () => vo
               <p className="text-xs text-slate-500 text-center py-4">Aucun vendeur affecté à cette boutique</p>
             )}
           </div>
+
+          {/* Boutons d'actions d'administration — Admin uniquement */}
+          {isAdmin && (
+            <div className="pt-4 border-t border-slate-800 flex gap-3">
+              <button
+                onClick={() => onEdit(pdv)}
+                className="flex-1 py-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/5"
+              >
+                <Edit3 className="w-4 h-4" />
+                <span>Modifier</span>
+              </button>
+              <button
+                onClick={() => onTogglePause(pdv)}
+                className={`flex-1 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all border shadow-lg ${
+                  pdv.active
+                    ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30 shadow-amber-500/5'
+                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-emerald-500/5'
+                }`}
+              >
+                {pdv.active ? (
+                  <>
+                    <Pause className="w-4 h-4" />
+                    <span>Mettre en pause</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    <span>Réactiver</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>
@@ -374,8 +477,29 @@ export default function PointsDeVentePage() {
   const [points, setPoints] = useState<PointDeVente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingPDV, setEditingPDV] = useState<PointDeVente | null>(null);
   const [selectedPDV, setSelectedPDV] = useState<PointDeVente | null>(null);
   const [filterVille, setFilterVille] = useState<string>('all');
+
+  const handleTogglePause = async (pdv: PointDeVente, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      const res = await fetch('/api/points-de-vente', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: pdv.id, active: !pdv.active }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchPoints();
+        if (selectedPDV && selectedPDV.id === pdv.id) {
+          setSelectedPDV((prev) => prev ? { ...prev, active: !prev.active } : null);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchPoints = useCallback(async () => {
     setLoading(true);
@@ -425,7 +549,7 @@ export default function PointsDeVentePage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          {(isAdmin || isGerant) && (
+          {isAdmin && (
             <button
               onClick={() => setShowCreate(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl btn-gold text-sm font-bold"
@@ -488,7 +612,7 @@ export default function PointsDeVentePage() {
           <div className="col-span-full py-20 text-center text-slate-500">
             <Building2 className="w-12 h-12 mx-auto mb-3 opacity-30" />
             <p>Aucun point de vente trouvé.</p>
-            {(isAdmin || isGerant) && (
+            {isAdmin && (
               <button
                 onClick={() => setShowCreate(true)}
                 className="mt-4 px-5 py-2.5 rounded-xl btn-gold text-sm font-bold inline-flex items-center gap-2"
@@ -541,7 +665,7 @@ export default function PointsDeVentePage() {
                   {/* Location */}
                   <div className="flex items-center gap-1.5 text-xs text-slate-400">
                     <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                    <span>{p.adresse ? `${p.adresse}, ` : ''}{p.ville}, Mali</span>
+                    <span>{p.adresse ? `${p.adresse}, ` : ''}{p.ville}, Guinée</span>
                   </div>
 
                   {/* Stats Grid */}
@@ -591,10 +715,48 @@ export default function PointsDeVentePage() {
                     </div>
                   )}
 
+                  {/* Actions Rapides — Admin uniquement */}
+                  {isAdmin && (
+                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPDV(p);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all shadow-sm"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Modifier</span>
+                      </button>
+
+                      <button
+                        onClick={(e) => handleTogglePause(p, e)}
+                        title={p.active ? "Mettre en pause les activités de cette boutique" : "Réactiver la boutique"}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+                          p.active
+                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        }`}
+                      >
+                        {p.active ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5" />
+                            <span>Mettre en pause</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Réactiver</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Footer CTA */}
                   <button
                     onClick={(e) => { e.stopPropagation(); setSelectedPDV(p); }}
-                    className="mt-auto flex items-center justify-between w-full text-xs text-slate-400 hover:text-amber-400 transition-colors pt-2 border-t border-slate-800"
+                    className="mt-auto flex items-center justify-between w-full text-xs text-slate-400 hover:text-amber-400 transition-colors pt-2 border-t border-slate-800/60"
                   >
                     <span>Voir les détails complets</span>
                     <ChevronRight className="w-4 h-4" />
@@ -609,8 +771,15 @@ export default function PointsDeVentePage() {
       {/* Modals */}
       <AnimatePresence>
         {showCreate && (
-          <CreatePDVModal
+          <PDVFormModal
             onClose={() => setShowCreate(false)}
+            onSuccess={fetchPoints}
+          />
+        )}
+        {editingPDV && (
+          <PDVFormModal
+            pdv={editingPDV}
+            onClose={() => setEditingPDV(null)}
             onSuccess={fetchPoints}
           />
         )}
@@ -618,6 +787,12 @@ export default function PointsDeVentePage() {
           <PDVDetailModal
             pdv={selectedPDV}
             onClose={() => setSelectedPDV(null)}
+            onEdit={(pdv) => {
+              setSelectedPDV(null);
+              setEditingPDV(pdv);
+            }}
+            onTogglePause={(pdv) => handleTogglePause(pdv)}
+            isAdmin={isAdmin}
           />
         )}
       </AnimatePresence>
