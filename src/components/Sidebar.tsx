@@ -32,7 +32,7 @@ interface SidebarProps {
 
 const navItems = [
   { href: '/', label: 'Tableau de Bord', icon: LayoutDashboard, badge: null, section: 'main' },
-  { href: '/boutique', label: 'Boutique Vitrine', icon: Store, badge: 'En ligne', section: 'main' },
+  { href: '/boutique', label: 'Boutique ', icon: Store, badge: 'En ligne', section: 'main' },
   { href: '/pos', label: 'Caisse & Vente POS', icon: ShoppingCart, badge: 'Direct', section: 'main' },
   { href: '/produits', label: 'Produits & Stocks', icon: Package, badge: null, section: 'main' },
   { href: '/ventes', label: 'Historique Factures', icon: Receipt, badge: null, section: 'main' },

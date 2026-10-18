@@ -562,7 +562,7 @@ export default function LoginPage() {
                 href="/boutique"
                 className="inline-flex items-center gap-2 text-xs font-semibold text-amber-400/90 hover:text-amber-300 transition-colors"
               >
-                ← Visiter la Boutique Vitrine en Ligne
+                ← Visiter la Boutique en Ligne
               </Link>
             </div>
           </div>

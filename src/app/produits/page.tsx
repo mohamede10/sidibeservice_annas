@@ -501,7 +501,7 @@ export default function ProduitsPage() {
                           Cliquez pour choisir une photo depuis votre appareil
                         </p>
                         <p className="text-[11px] text-slate-500 mt-1">
-                          JPG, PNG, WebP (affichée en boutique vitrine et catalogue)
+                          JPG, PNG, WebP (affichée en boutique et catalogue)
                         </p>
                       </>
                     )}
