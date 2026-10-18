@@ -519,48 +519,89 @@ export default function BoutiqueVitrinePage() {
       {/* =========================================================================
           HERO BANNER VITRINE HAUT DE GAMME
       ========================================================================= */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#0b1120] to-[#080c14] border-b border-slate-800/80 py-10 sm:py-14">
-        {/* Cercles lumineux d'ambiance */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-10 w-80 h-80 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative overflow-hidden border-b border-slate-800/80 py-10 sm:py-20 min-h-[520px] flex items-center">
+        {/* ── Image de fond luxueuse : mosaïque décoration intérieure ── */}
+        <div className="absolute inset-0 z-0">
+          {/* Photo principale : rideaux luxueux */}
+          <img
+            src="https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1800&q=85"
+            alt="Rideaux luxueux Sidibe Services"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          {/* Overlay gradient sombre pour lisibilité du texte */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#060a12]/95 via-[#080c14]/80 to-[#0a0f1e]/60" />
+          {/* Bandes latérales pour images secondaires flottantes */}
+          <div className="absolute top-0 right-0 bottom-0 w-1/3 overflow-hidden hidden lg:block">
+            <div className="absolute top-0 right-0 bottom-0 w-full grid grid-rows-2 gap-1 opacity-70">
+              <img
+                src="https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=700&q=80"
+                alt="Draps grand luxe"
+                className="w-full h-full object-cover"
+              />
+              <img
+                src="https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=700&q=80"
+                alt="Coussins décoratifs"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            {/* Overlay dégradé sur les images de droite */}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#080c14] via-[#080c14]/30 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-l from-[#080c14]/40 to-transparent" />
+          </div>
+          {/* Grain de texture subtil */}
+          <div className="absolute inset-0 opacity-[0.03]" style={{backgroundImage: 'url(https://grainy-gradients.vercel.app/noise.svg)'}} />
+        </div>
+
+        {/* Cercles lumineux d'ambiance (par-dessus l'image) */}
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/8 rounded-full blur-3xl pointer-events-none z-[1]" />
+        <div className="absolute bottom-0 left-10 w-80 h-80 bg-amber-400/5 rounded-full blur-3xl pointer-events-none z-[1]" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
             <div className="max-w-2xl space-y-4 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold tracking-wide">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-bold tracking-wide backdrop-blur-sm shadow-lg shadow-amber-500/10">
                 <Sparkles className="w-3.5 h-3.5" />
-                Collection Intérieure & Décoration 2026
+                Collection Intérieure &amp; Décoration 2026
               </div>
 
               <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
                 Sublimez Votre Intérieur avec <span className="text-gold-gradient">SIDIBE SERVICES</span>
               </h1>
 
-              <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
+              <p className="text-sm sm:text-base text-slate-200 leading-relaxed drop-shadow-lg">
                 Tapis raffinés, rideaux majestueux, panneaux muraux 3D, couettes et parures de lit grand luxe.
                 Commandez directement en ligne avec livraison rapide ou retrait en boutique à Kankan.
               </p>
 
+              {/* Texte décoratif filigrane subtil */}
+              <div className="hidden sm:flex items-center gap-3 text-[11px] font-semibold text-amber-400/70 tracking-[0.2em] uppercase">
+                <span className="w-8 h-px bg-amber-400/40" />
+                <span>Décoration Premium • Guinée</span>
+                <span className="w-8 h-px bg-amber-400/40" />
+              </div>
+
               {/* Badges de confiance */}
               <div className="pt-2 flex flex-wrap items-center justify-center lg:justify-start gap-3 sm:gap-4 text-xs">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-slate-200 shadow-lg">
                   <Truck className="w-4 h-4 text-amber-400" />
-                  <span>Livraison Kankan & Guinée</span>
+                  <span>Livraison Kankan &amp; Guinée</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-slate-200 shadow-lg">
                   <Store className="w-4 h-4 text-emerald-400" />
                   <span>Retrait Gratuit en Magasin</span>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-300">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-slate-200 shadow-lg">
                   <ShieldCheck className="w-4 h-4 text-blue-400" />
                   <span>Paiement à la Livraison</span>
                 </div>
               </div>
             </div>
 
-            {/* Carte promotionnelle d'accueil */}
-            <div className="w-full lg:w-96 rounded-3xl bg-gradient-to-br from-slate-900/90 to-slate-950 p-6 border border-amber-500/30 shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl" />
+            {/* Carte promotionnelle d'accueil — Glassmorphism */}
+            <div className="w-full lg:w-96 rounded-3xl bg-black/50 backdrop-blur-xl p-6 border border-amber-500/30 shadow-2xl shadow-black/60 relative overflow-hidden">
+              {/* Bord lumineux doré subtil */}
+              <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-2xl" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-400/5 rounded-full blur-xl" />
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
                   <Tag className="w-3.5 h-3.5" /> Service Express
@@ -589,7 +630,7 @@ export default function BoutiqueVitrinePage() {
                   const el = document.getElementById('catalogue-section');
                   el?.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="w-full py-3 rounded-2xl btn-gold text-slate-950 font-bold text-xs flex items-center justify-center gap-2"
+                className="w-full py-3 rounded-2xl btn-gold text-slate-950 font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
               >
                 <span>Explorer le Catalogue</span>
                 <ChevronRight className="w-4 h-4" />
