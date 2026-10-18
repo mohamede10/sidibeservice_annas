@@ -15,6 +15,10 @@ import {
   Tag,
   RefreshCw,
   Eye,
+  Upload,
+  Image as ImageIcon,
+  X,
+  Link as LinkIcon,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
@@ -34,6 +38,7 @@ interface Produit {
   nom: string;
   ref?: string;
   description?: string;
+  imageUrl?: string;
   categorieId?: number;
   categorieNom?: string;
   dateAjout: string;
@@ -51,13 +56,16 @@ export default function ProduitsPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formNom, setFormNom] = useState('');
   const [formRef, setFormRef] = useState('');
-  const [formCategorie, setFormCategorie] = useState('');
+  const [formCategorie, setFormCategorie] = useState('Tapis');
   const [formDescription, setFormDescription] = useState('');
+  const [formImageUrl, setFormImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageInputMode, setImageInputMode] = useState<'upload' | 'url'>('upload');
   const [formPrix, setFormPrix] = useState('25000');
   const [formCout, setFormCout] = useState('15000');
   const [formStock, setFormStock] = useState('10');
   const [formTaille, setFormTaille] = useState('Standard');
-  const [formCouleur, setFormCouleur] = useState('Noir / Classique');
+  const [formCouleur, setFormCouleur] = useState('Doré / Or');
   const [submitting, setSubmitting] = useState(false);
 
   // Modal View Product Details
@@ -83,6 +91,34 @@ export default function ProduitsPage() {
     fetchProduits();
   }, []);
 
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingImage(true);
+      const fd = new FormData();
+      fd.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: fd,
+      });
+
+      const json = await res.json();
+      if (json.success && json.url) {
+        setFormImageUrl(json.url);
+      } else {
+        alert(json.error || 'Erreur lors du téléchargement de l\'image');
+      }
+    } catch (err) {
+      console.error('Erreur upload image:', err);
+      alert('Erreur réseau lors du téléversement');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formNom.trim()) return;
@@ -96,7 +132,8 @@ export default function ProduitsPage() {
           nom: formNom,
           ref: formRef || undefined,
           description: formDescription,
-          categorieNom: formCategorie || 'Vêtements Homme',
+          imageUrl: formImageUrl || undefined,
+          categorieNom: formCategorie || 'Tapis',
           prix: formPrix,
           coutAchat: formCout,
           quantiteStock: formStock,
@@ -111,6 +148,7 @@ export default function ProduitsPage() {
         setFormNom('');
         setFormRef('');
         setFormDescription('');
+        setFormImageUrl('');
         fetchProduits();
       } else {
         alert(json.error || 'Erreur lors de la création');
@@ -241,11 +279,24 @@ export default function ProduitsPage() {
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
                       <td className="px-6 py-4">
-                        <div>
-                          <p className="font-bold text-white text-sm hover:text-amber-400 transition-colors cursor-pointer" onClick={() => setSelectedProduct(p)}>
-                            {p.nom}
-                          </p>
-                          <p className="text-xs text-slate-400 mt-0.5">Réf: {p.ref || `PRD-${p.id}`}</p>
+                        <div className="flex items-center gap-3">
+                          {p.imageUrl ? (
+                            <img
+                              src={p.imageUrl}
+                              alt={p.nom}
+                              className="w-11 h-11 rounded-xl object-cover border border-slate-700 flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-500 flex-shrink-0">
+                              <ImageIcon className="w-5 h-5 opacity-40" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-white text-sm hover:text-amber-400 transition-colors cursor-pointer truncate" onClick={() => setSelectedProduct(p)}>
+                              {p.nom}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">Réf: {p.ref || `PRD-${p.id}`}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -369,6 +420,108 @@ export default function ProduitsPage() {
             </div>
           </div>
 
+          {/* Section Image du Produit */}
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Photo du Produit
+              </label>
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setImageInputMode('upload')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                    imageInputMode === 'upload'
+                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Téléverser fichier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageInputMode('url')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                    imageInputMode === 'url'
+                      ? 'bg-amber-500 text-slate-950 font-bold'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Lien URL
+                </button>
+              </div>
+            </div>
+
+            {/* Aperçu ou zone d'upload */}
+            {formImageUrl ? (
+              <div className="relative flex items-center gap-4 p-3 rounded-xl bg-slate-950 border border-slate-700/80">
+                <img
+                  src={formImageUrl}
+                  alt="Aperçu produit"
+                  className="w-16 h-16 rounded-xl object-cover border border-amber-500/40"
+                />
+                <div className="flex-1 min-w-0 text-xs">
+                  <p className="text-emerald-400 font-bold flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5" /> Photo prête pour le produit
+                  </p>
+                  <p className="text-slate-400 truncate text-[11px] font-mono mt-0.5">{formImageUrl}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormImageUrl('')}
+                  className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-900 transition-colors"
+                  title="Supprimer la photo"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div>
+                {imageInputMode === 'upload' ? (
+                  <label className="relative flex flex-col items-center justify-center p-5 border-2 border-dashed border-slate-700 hover:border-amber-500/60 rounded-2xl bg-slate-950/60 cursor-pointer group transition-all">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="hidden"
+                      disabled={uploadingImage}
+                    />
+                    {uploadingImage ? (
+                      <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Téléversement de la photo en cours...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                          <Upload className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs font-bold text-white group-hover:text-amber-400 transition-colors">
+                          Cliquez pour choisir une photo depuis votre appareil
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          JPG, PNG, WebP (affichée en boutique vitrine et catalogue)
+                        </p>
+                      </>
+                    )}
+                  </label>
+                ) : (
+                  <div className="relative">
+                    <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <input
+                      type="url"
+                      value={formImageUrl}
+                      onChange={(e) => setFormImageUrl(e.target.value)}
+                      placeholder="https://exemple.com/image.jpg ou /uploads/photo.jpg"
+                      className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
             <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               Variante & Tarification
@@ -455,6 +608,15 @@ export default function ProduitsPage() {
         subtitle={`Réf: ${selectedProduct?.ref || ''} • Catégorie: ${selectedProduct?.categorieNom || 'Mode'}`}
       >
         <div className="space-y-4">
+          {selectedProduct?.imageUrl && (
+            <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 max-h-60 flex items-center justify-center p-2">
+              <img
+                src={selectedProduct.imageUrl}
+                alt={selectedProduct.nom}
+                className="max-h-56 w-auto object-contain rounded-xl shadow-lg"
+              />
+            </div>
+          )}
           <p className="text-xs text-slate-300">
             {selectedProduct?.description || 'Aucune description spécifique renseignée.'}
           </p>

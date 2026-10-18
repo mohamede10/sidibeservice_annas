@@ -13,18 +13,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, isLoadingSession } = useAuth();
 
   const isLoginPage = pathname === '/login';
+  const isBoutiquePage = pathname === '/boutique' || pathname?.startsWith('/boutique/');
 
   useEffect(() => {
     if (!isLoadingSession) {
-      if (!user && !isLoginPage) {
-        router.replace('/login');
+      if (!user && !isLoginPage && !isBoutiquePage) {
+        // Rediriger les visiteurs non connectés vers la boutique vitrine
+        router.replace('/boutique');
       } else if (user && isLoginPage) {
         router.replace('/');
       }
     }
-  }, [user, isLoadingSession, isLoginPage, router]);
+  }, [user, isLoadingSession, isLoginPage, isBoutiquePage, router]);
 
-  if (isLoginPage) {
+  // Les pages publiques (login et boutique vitrine) ne s'affichent pas avec la sidebar ERP
+  if (isLoginPage || isBoutiquePage) {
     return <div className="min-h-screen bg-[#090d16] text-slate-100">{children}</div>;
   }
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import {
@@ -555,6 +556,15 @@ export default function LoginPage() {
                 )}
               </motion.button>
             </form>
+
+            <div className="mt-4 pt-3 border-t border-slate-800/60 text-center">
+              <Link
+                href="/boutique"
+                className="inline-flex items-center gap-2 text-xs font-semibold text-amber-400/90 hover:text-amber-300 transition-colors"
+              >
+                ← Visiter la Boutique Vitrine en Ligne
+              </Link>
+            </div>
           </div>
           <div className="pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
             Développer par COTECH SERVICES

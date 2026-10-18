@@ -55,7 +55,19 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { nom, ref, description, categorieId, categorieNom, prix, coutAchat, quantiteStock, taille, couleur } = body;
+    const {
+      nom,
+      ref,
+      description,
+      imageUrl,
+      categorieId,
+      categorieNom,
+      prix,
+      coutAchat,
+      quantiteStock,
+      taille,
+      couleur,
+    } = body;
 
     if (!nom) {
       return NextResponse.json({ success: false, error: 'Le nom du produit est requis' }, { status: 400 });
@@ -68,6 +80,7 @@ export async function POST(request: NextRequest) {
         nom,
         ref: newRef,
         description: description || '',
+        imageUrl: imageUrl || null,
         categorieId: categorieId ? parseInt(categorieId) : null,
         categorieNom: categorieNom || 'Général',
         actif: true,
