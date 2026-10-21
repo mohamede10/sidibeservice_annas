@@ -320,7 +320,7 @@ export default function VentesPage() {
               <div>
                 <h2 className="text-xl font-black text-slate-900">SIDIBE SERVICES</h2>
                 <p className="text-[11px] text-slate-500">
-                  {selectedVente?.pointVente?.nom || selectedVente?.pointVenteNom || 'Kankan, Guinée'} • Tél: +224 620 00 00 00
+                  {selectedVente?.pointVente?.nom || selectedVente?.pointVenteNom || 'Kankan, Guinée'} • Tél: +224 622 48 81 61
                 </p>
               </div>
               <div className="text-right">

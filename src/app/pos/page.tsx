@@ -698,8 +698,8 @@ export default function PosPage() {
             {/* Ticket Header */}
             <div className="text-center pb-3 border-b border-dashed border-slate-300 space-y-1">
               <h2 className="text-xl font-black tracking-wider text-slate-900">SIDIBE SERVICE</h2>
-              <p className="text-xs text-slate-600">Mode & Vêtements Masculins Haut de Gamme</p>
-              <p className="text-[11px] text-slate-500">Tél: +223 70 00 00 00 • Bamako, Mali</p>
+              <p className="text-xs text-slate-600">Décoration intérieur</p>
+              <p className="text-[11px] text-slate-500">Tél: +224 622 48 81 61 • Guinée, Kankan</p>
             </div>
 
             {/* Sale metadata */}

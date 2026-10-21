@@ -1,3 +1,4 @@
+//app_web_nextjs\src\app\layout.tsx
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import DashboardLayout from '@/components/DashboardLayout';
