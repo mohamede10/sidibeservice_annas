@@ -41,10 +41,17 @@ export async function GET(request: NextRequest) {
       orderBy: { nom: 'asc' },
     });
 
+    const pointsDeVente = await prisma.pointDeVente.findMany({
+      where: { active: true },
+      select: { id: true, nom: true, codeBoutique: true, ville: true },
+      orderBy: { nom: 'asc' },
+    });
+
     return NextResponse.json({
       success: true,
       produits,
       categories,
+      pointsDeVente,
     });
   } catch (error) {
     console.error('Erreur API Produits:', error);
@@ -67,6 +74,7 @@ export async function POST(request: NextRequest) {
       quantiteStock,
       taille,
       couleur,
+      pointDeVenteId, // boutique sélectionnée par l'utilisateur
     } = body;
 
     if (!nom) {
@@ -100,6 +108,27 @@ export async function POST(request: NextRequest) {
         categorie: true,
       },
     });
+
+    // Créer les entrées de stock par point de vente pour chaque boutique
+    // Le stock initial est affecté à la boutique choisie par l'utilisateur
+    const pointsDeVente = await prisma.pointDeVente.findMany();
+    if (produit.variantes.length > 0 && pointsDeVente.length > 0) {
+      const v = produit.variantes[0];
+      const selectedPdvId = pointDeVenteId ? parseInt(pointDeVenteId) : pointsDeVente[0]?.id;
+
+      for (const pdv of pointsDeVente) {
+        // Le stock initial va à la boutique sélectionnée, 0 pour les autres
+        const qte = pdv.id === selectedPdvId ? v.quantiteStock : 0;
+        await prisma.stockParPoint.create({
+          data: {
+            varianteId: v.id,
+            pointDeVenteId: pdv.id,
+            quantite: qte,
+            stockMin: 3,
+          },
+        }).catch((err) => console.error('Erreur create StockParPoint:', err));
+      }
+    }
 
     return NextResponse.json({ success: true, produit });
   } catch (error) {

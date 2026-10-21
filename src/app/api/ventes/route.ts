@@ -6,8 +6,13 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('q') || '';
     const statut = searchParams.get('statut') || '';
+    const pointVenteId = searchParams.get('pointVenteId');
 
     const whereClause: Record<string, unknown> = {};
+
+    if (pointVenteId && !isNaN(parseInt(pointVenteId))) {
+      whereClause.pointVenteId = parseInt(pointVenteId);
+    }
 
     if (search) {
       whereClause.OR = [
@@ -26,6 +31,7 @@ export async function GET(request: NextRequest) {
       include: {
         client: true,
         vendeur: true,
+        pointVente: true,
         lignes: true,
         factures: true,
       },

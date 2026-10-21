@@ -25,6 +25,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isVendeur: boolean;
   isGerant: boolean;
+  canManageProducts: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,7 +44,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.login) {
           setUser(parsed);
-          if (parsed.role !== 'ADMIN' && parsed.pointVenteId) {
+          if (parsed.role === 'VENDEUR' && parsed.pointVenteId) {
+            setActivePointVenteId(parsed.pointVenteId);
+            setActivePointVenteNom(parsed.pointVenteNom || 'Ma Boutique');
+          } else if (parsed.role === 'GERANT' && parsed.pointVenteId) {
             setActivePointVenteId(parsed.pointVenteId);
             setActivePointVenteNom(parsed.pointVenteNom || 'Ma Boutique');
           }
@@ -77,6 +81,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const setActivePointVente = (pvId: number | null, pvNom?: string) => {
+    // Si c'est un vendeur, il ne peut pas changer de boutique
+    if (user?.role === 'VENDEUR' && user.pointVenteId) {
+      setActivePointVenteId(user.pointVenteId);
+      setActivePointVenteNom(user.pointVenteNom || 'Ma Boutique');
+      return;
+    }
     setActivePointVenteId(pvId);
     setActivePointVenteNom(pvNom || (pvId ? `Boutique #${pvId}` : 'Vue Consolidée (Toutes les Villes)'));
   };
@@ -84,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.role === 'ADMIN';
   const isGerant = user?.role === 'GERANT';
   const isVendeur = user?.role === 'VENDEUR';
+  const canManageProducts = isAdmin || isGerant;
 
   return (
     <AuthContext.Provider
@@ -98,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         isVendeur,
         isGerant,
+        canManageProducts,
       }}
     >
       {children}

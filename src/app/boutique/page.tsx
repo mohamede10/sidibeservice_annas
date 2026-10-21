@@ -610,7 +610,7 @@ export default function BoutiqueVitrinePage() {
                   Boutiques Ouvertes
                 </span>
               </div>
-              <h3 className="text-xl font-black text-white mb-2">Comment passer commande ?</h3>
+              <h3 className="text-xl font-black text-white mb-2">Comment passer une commande ?</h3>
               <ul className="space-y-2 text-xs text-slate-300 mb-5">
                 <li className="flex items-start gap-2">
                   <span className="font-bold text-amber-400">1.</span>

@@ -14,9 +14,12 @@ import {
   RefreshCw,
   Printer,
   ChevronRight,
+  Store,
+  Lock,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ClientDette {
   id: number;
@@ -32,6 +35,7 @@ interface ClientDette {
     montantPaye: number;
     montantRestant: number;
     statutPaiement: string;
+    pointVente?: { nom: string };
   }>;
   paiements: Array<{
     id: number;
@@ -42,11 +46,23 @@ interface ClientDette {
   }>;
 }
 
+interface BoutiqueItem {
+  id: number;
+  nom: string;
+  ville: string;
+}
+
 export default function DettesPage() {
+  const { user, isAdmin, isVendeur, activePointVenteId } = useAuth();
+
   const [clients, setClients] = useState<ClientDette[]>([]);
   const [totalDettes, setTotalDettes] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [boutiquesList, setBoutiquesList] = useState<BoutiqueItem[]>([]);
+  const [selectedBoutiqueId, setSelectedBoutiqueId] = useState<string>(
+    isVendeur && user?.pointVenteId ? String(user.pointVenteId) : (activePointVenteId ? String(activePointVenteId) : '')
+  );
 
   // Settle Debt Modal
   const [selectedClient, setSelectedClient] = useState<ClientDette | null>(null);
@@ -65,10 +81,38 @@ export default function DettesPage() {
     nouveauSolde: number;
   } | null>(null);
 
+  // Charger la liste des boutiques si admin
+  useEffect(() => {
+    if (isAdmin) {
+      fetch('/api/points-de-vente')
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success && json.pointsDeVente) {
+            setBoutiquesList(
+              json.pointsDeVente.map((p: any) => ({
+                id: p.id,
+                nom: p.nom,
+                ville: p.ville,
+              }))
+            );
+          }
+        })
+        .catch(console.error);
+    }
+  }, [isAdmin]);
+
   const fetchDettes = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/dettes');
+      let url = '/api/dettes';
+
+      if (isVendeur && user?.pointVenteId) {
+        url += `?pointVenteId=${user.pointVenteId}`;
+      } else if (isAdmin && selectedBoutiqueId) {
+        url += `?pointVenteId=${selectedBoutiqueId}`;
+      }
+
+      const res = await fetch(url);
       const json = await res.json();
       if (json.success) {
         setClients(json.clients || []);
@@ -83,7 +127,7 @@ export default function DettesPage() {
 
   useEffect(() => {
     fetchDettes();
-  }, []);
+  }, [selectedBoutiqueId, isVendeur, user?.pointVenteId]);
 
   const handleOpenPaiement = (client: ClientDette) => {
     setSelectedClient(client);
@@ -148,14 +192,16 @@ export default function DettesPage() {
             Suivi des Dettes & Créances Clients
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Recouvrement, acomptes partiels et encaissement des ventes à crédit.
+            {isVendeur
+              ? `Créances et ventes à crédit enregistrées pour votre boutique (${user?.pointVenteNom || 'Ma Boutique'}).`
+              : 'Recouvrement consolidé, acomptes partiels et créances de toutes les boutiques.'}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="px-5 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-right">
             <p className="text-[11px] font-semibold text-rose-300 uppercase tracking-wider">
-              Total Créances Dues
+              {isAdmin && !selectedBoutiqueId ? 'Total Créances Générales' : 'Créances Dues Boutique'}
             </p>
             <p className="text-xl font-black text-rose-400">{formatCurrency(totalDettes)}</p>
           </div>
@@ -168,6 +214,40 @@ export default function DettesPage() {
           </button>
         </div>
       </div>
+
+      {/* Boutique Notice / Filter */}
+      {isVendeur ? (
+        <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 text-xs text-slate-300 flex items-center gap-2.5">
+          <Lock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <span>
+            Boutique Affectée : <strong className="text-amber-400 font-bold">{user?.pointVenteNom || 'Boutique Principale'}</strong>. Seules les dettes générées par votre boutique sont affichées ici.
+          </span>
+        </div>
+      ) : (
+        isAdmin && (
+          <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <Store className="w-4 h-4 text-amber-400" />
+              <span className="text-slate-300 font-semibold">Périmètre des Dettes :</span>
+              <select
+                value={selectedBoutiqueId}
+                onChange={(e) => setSelectedBoutiqueId(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400 font-medium"
+              >
+                <option value="">🌟 Toutes les Boutiques (Consolidé)</option>
+                {boutiquesList.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    🏬 {b.nom} ({b.ville})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="text-slate-400">
+              Nombre de débiteurs : <strong className="text-white">{filtered.length}</strong>
+            </div>
+          </div>
+        )
+      )}
 
       {/* Search filter */}
       <div className="glass-panel p-4 rounded-2xl border border-slate-800 max-w-md">
@@ -206,53 +286,44 @@ export default function DettesPage() {
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                    Aucun client avec dette en cours. Bravo !
+                    Aucune créance en cours trouvée pour ce périmètre.
                   </td>
                 </tr>
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-white text-sm">{c.nom}</div>
-                      <div className="text-xs text-slate-400">{c.telephone || 'Sans téléphone'}</div>
+                      <div>
+                        <p className="font-bold text-white text-sm">{c.nom}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{c.telephone || 'Sans téléphone'}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-300">
+                      {c.ville || 'Kankan'}
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-400">
-                      {c.ville || 'Bamako'}
+                      <div className="flex flex-wrap gap-1">
+                        {c.ventes?.map((v) => (
+                          <span
+                            key={v.id}
+                            className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-[11px] text-slate-300"
+                          >
+                            {v.reference} ({formatCurrency(v.montantRestant)})
+                          </span>
+                        ))}
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-xs">
-                      {c.ventes.length > 0 ? (
-                        <div className="space-y-1">
-                          {c.ventes.slice(0, 2).map((v) => (
-                            <span
-                              key={v.id}
-                              className="inline-block mr-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300"
-                            >
-                              {v.reference} ({formatCurrency(v.montantRestant)})
-                            </span>
-                          ))}
-                          {c.ventes.length > 2 && (
-                            <span className="text-slate-500 text-[10px]">+{c.ventes.length - 2} autres</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-500">Solde antérieur</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-base font-black text-rose-400">
-                        {formatCurrency(c.soldeDette)}
-                      </span>
+                    <td className="px-6 py-4 font-black text-rose-400 text-base">
+                      {formatCurrency(c.soldeDette)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <motion.button
-                        whileHover={{ scale: 1.04 }}
-                        whileTap={{ scale: 0.96 }}
+                      <button
                         onClick={() => handleOpenPaiement(c)}
-                        className="btn-gold px-4 py-2 rounded-xl text-xs font-bold shadow-md inline-flex items-center gap-1.5"
+                        className="btn-gold px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-amber-500/10 inline-flex items-center gap-1.5"
                       >
-                        <Banknote className="w-4 h-4" />
-                        Encaisser un Règlement
-                      </motion.button>
+                        <Banknote className="w-3.5 h-3.5" />
+                        <span>Encaisser Acompte</span>
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -262,30 +333,47 @@ export default function DettesPage() {
         </div>
       </div>
 
-      {/* MODAL: ENCAISSEMENT REGLEMENT DETTE */}
+      {/* MODAL: RECOUVREMENT DETTE */}
       <AnimatedModal
         isOpen={Boolean(selectedClient)}
         onClose={() => setSelectedClient(null)}
-        title="Encaisser un Remboursement / Acompte"
-        subtitle={`Client : ${selectedClient?.nom || ''} • Dette actuelle : ${formatCurrency(selectedClient?.soldeDette)}`}
+        title="Encaisser un Remboursement"
+        subtitle={`Règlement de dette pour : ${selectedClient?.nom || ''}`}
       >
         <form onSubmit={handleSettleDebt} className="space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-400">Total dette actuelle</p>
+              <p className="text-lg font-black text-rose-400">
+                {formatCurrency(selectedClient?.soldeDette || 0)}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-400">Téléphone</p>
+              <p className="text-xs font-semibold text-white">
+                {selectedClient?.telephone || 'Non renseigné'}
+              </p>
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1">
-              Montant versé par le client (GNF) *
+              Montant à Encaisser (GNF) *
             </label>
             <input
               type="number"
               required
+              min={1}
+              max={selectedClient?.soldeDette}
               value={montantRemboursement}
               onChange={(e) => setMontantRemboursement(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-amber-400 font-extrabold text-lg focus:outline-none focus:border-amber-400"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-black text-lg focus:outline-none focus:border-amber-400"
             />
           </div>
 
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1">
-              Mode d&apos;encaissement
+              Mode de Règlement
             </label>
             <select
               value={modeRemboursement}
@@ -293,36 +381,26 @@ export default function DettesPage() {
               className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-400"
             >
               <option value="ESPECES">Espèces (Cash)</option>
-              <option value="WAVE">Wave Mobile</option>
               <option value="ORANGE_MONEY">Orange Money</option>
-              <option value="CARTE_BANCAIRE">Carte Bancaire</option>
+              <option value="WAVE">Wave</option>
               <option value="VIREMENT">Virement / Chèque</option>
             </select>
           </div>
 
           <div>
             <label className="text-xs font-semibold text-slate-300 block mb-1">
-              Notes / Observation
+              Notes & Référence (optionnel)
             </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ex: Acompte sur solde veste ou costume..."
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-sm focus:outline-none focus:border-amber-400"
+              placeholder="Ex: Reste payé par le frère du client"
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
             />
           </div>
 
-          {selectedClient && montantRemboursement && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex justify-between">
-              <span>Nouveau solde après règlement :</span>
-              <span className="font-bold">
-                {formatCurrency(Math.max(0, selectedClient.soldeDette - (parseFloat(montantRemboursement) || 0)))}
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={() => setSelectedClient(null)}
@@ -333,10 +411,9 @@ export default function DettesPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg flex items-center gap-2"
+              className="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20"
             >
-              <CheckCircle className="w-4 h-4" />
-              {submitting ? 'Validation...' : 'Valider le Règlement'}
+              {submitting ? 'Validation...' : 'Valider l\'Encaissement'}
             </button>
           </div>
         </form>
@@ -346,57 +423,45 @@ export default function DettesPage() {
       <AnimatedModal
         isOpen={Boolean(lastPayment)}
         onClose={() => setLastPayment(null)}
-        title="Reçu d'Encaissement Dette"
-        subtitle={`Réf: ${lastPayment?.reference || ''}`}
+        title="Reçu de Paiement Confirmé"
+        subtitle="Règlement de créance validé avec succès"
       >
         <div className="space-y-4">
-          <div id="printable-area" className="p-6 rounded-2xl bg-white text-slate-900 shadow-lg space-y-3">
-            <div className="text-center pb-2 border-b border-dashed border-slate-300">
-              <h3 className="font-black text-lg text-slate-900">SIDIBE SERVICE</h3>
-              <p className="text-xs text-slate-500">REÇU DE RÈGLEMENT DE CRÉANCE</p>
+          <div className="p-6 rounded-2xl bg-white text-slate-900 shadow-xl space-y-3">
+            <div className="flex justify-between items-start border-b border-slate-200 pb-3">
+              <div>
+                <h3 className="font-black text-slate-900">SIDIBE SERVICES</h3>
+                <p className="text-[11px] text-slate-500">Reçu d&apos;encaissement dette</p>
+              </div>
+              <div className="text-right">
+                <span className="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">
+                  ENCAISSÉ
+                </span>
+                <p className="text-xs font-bold text-slate-900 mt-1">{lastPayment?.reference}</p>
+              </div>
             </div>
 
-            <div className="text-xs space-y-1.5 text-slate-700">
-              <div className="flex justify-between">
-                <span>Réf Reçu :</span>
-                <span className="font-bold text-slate-900">{lastPayment?.reference}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Client :</span>
-                <span className="font-bold text-slate-900">{lastPayment?.nomClient}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Date :</span>
-                <span>{lastPayment?.date ? new Date(lastPayment.date).toLocaleString('fr-FR') : ''}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Mode :</span>
-                <span className="font-semibold">{lastPayment?.modePaiement}</span>
-              </div>
-              <div className="flex justify-between pt-2 border-t border-dashed border-slate-200 text-sm font-black text-emerald-700">
-                <span>Montant Réglé :</span>
-                <span>{formatCurrency(lastPayment?.montant)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-slate-600">
-                <span>Nouveau Solde Restant :</span>
-                <span>{formatCurrency(lastPayment?.nouveauSolde)}</span>
-              </div>
+            <div className="text-xs space-y-1 text-slate-700">
+              <p>Client : <strong className="text-slate-900">{lastPayment?.nomClient}</strong></p>
+              <p>Montant Encaissé : <strong className="text-emerald-700 text-sm">{formatCurrency(lastPayment?.montant || 0)}</strong></p>
+              <p>Mode : <strong>{lastPayment?.modePaiement}</strong></p>
+              <p>Nouveau Solde Restant : <strong className="text-rose-600 font-bold">{formatCurrency(lastPayment?.nouveauSolde || 0)}</strong></p>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+            <button
+              onClick={() => window.print()}
+              className="btn-gold px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimer le Reçu
+            </button>
             <button
               onClick={() => setLastPayment(null)}
               className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold"
             >
               Fermer
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2"
-            >
-              <Printer className="w-4 h-4" />
-              Imprimer le Reçu
             </button>
           </div>
         </div>

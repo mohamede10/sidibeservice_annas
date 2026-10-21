@@ -124,7 +124,7 @@ export default function LoginPage() {
         setErrorMsg(data.error || 'Erreur lors de la connexion');
       }
     } catch {
-      setErrorMsg('Erreur de connexion au serveur');
+      setErrorMsg('Erreur de connexion au internet');
     } finally {
       setLoading(false);
     }

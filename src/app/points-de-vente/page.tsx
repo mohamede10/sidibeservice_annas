@@ -26,6 +26,8 @@ import {
   Play,
   Power,
   AlertTriangle,
+  Boxes,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +55,11 @@ interface PointDeVente {
   stats30j: {
     _sum: { total: number | null; montantPaye: number | null };
     _count: { _all: number };
+  };
+  stockInfo?: {
+    montant: number;
+    quantite: number;
+    references: number;
   };
 }
 
@@ -291,12 +298,14 @@ function PDVDetailModal({
   onClose,
   onEdit,
   onTogglePause,
+  onDelete,
   isAdmin,
 }: {
   pdv: PointDeVente;
   onClose: () => void;
   onEdit: (pdv: PointDeVente) => void;
   onTogglePause: (pdv: PointDeVente) => void;
+  onDelete: (pdv: PointDeVente) => void;
   isAdmin: boolean;
 }) {
   const villeColor = VILLE_COLORS[pdv.ville] || 'from-slate-500/20 to-slate-600/10 border-slate-500/30 text-slate-300';
@@ -379,8 +388,33 @@ function PDVDetailModal({
             )}
           </div>
 
+          {/* Section Valeur Totale du Stock */}
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <Boxes className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-emerald-300 uppercase tracking-wide">
+                  Valeur Totale du Stock en Magasin
+                </p>
+                <p className="text-xl font-black text-emerald-400">
+                  {formatCurrency(pdv.stockInfo?.montant || 0)}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="text-xs font-bold text-white bg-slate-800 px-3 py-1 rounded-xl border border-slate-700 block">
+                {pdv.stockInfo?.quantite || 0} articles
+              </span>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                {pdv.stockInfo?.references || pdv._count.stocks} référence(s)
+              </span>
+            </div>
+          </div>
+
           {/* Stats 30j */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 text-center">
               <ShoppingCart className="w-4 h-4 text-blue-400 mx-auto mb-1" />
               <p className="text-lg font-black text-white">{pdv.stats30j._count._all}</p>
@@ -390,11 +424,6 @@ function PDVDetailModal({
               <Banknote className="w-4 h-4 text-amber-400 mx-auto mb-1" />
               <p className="text-sm font-black text-amber-400">{formatCurrency(pdv.stats30j._sum.total)}</p>
               <p className="text-[10px] text-slate-400">CA / 30j</p>
-            </div>
-            <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 text-center">
-              <Package className="w-4 h-4 text-emerald-400 mx-auto mb-1" />
-              <p className="text-lg font-black text-white">{pdv._count.stocks}</p>
-              <p className="text-[10px] text-slate-400">Réf. Stock</p>
             </div>
           </div>
 
@@ -436,36 +465,133 @@ function PDVDetailModal({
 
           {/* Boutons d'actions d'administration — Admin uniquement */}
           {isAdmin && (
-            <div className="pt-4 border-t border-slate-800 flex gap-3">
+            <div className="pt-4 border-t border-slate-800 space-y-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => onEdit(pdv)}
+                  className="flex-1 py-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/5"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  <span>Modifier</span>
+                </button>
+                <button
+                  onClick={() => onTogglePause(pdv)}
+                  className={`flex-1 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all border shadow-lg ${
+                    pdv.active
+                      ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30 shadow-amber-500/5'
+                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-emerald-500/5'
+                  }`}
+                >
+                  {pdv.active ? (
+                    <>
+                      <Pause className="w-4 h-4" />
+                      <span>Mettre en pause</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      <span>Réactiver</span>
+                    </>
+                  )}
+                </button>
+              </div>
               <button
-                onClick={() => onEdit(pdv)}
-                className="flex-1 py-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/5"
+                onClick={() => onDelete(pdv)}
+                className="w-full py-3 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-500/5"
               >
-                <Edit3 className="w-4 h-4" />
-                <span>Modifier</span>
-              </button>
-              <button
-                onClick={() => onTogglePause(pdv)}
-                className={`flex-1 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all border shadow-lg ${
-                  pdv.active
-                    ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30 shadow-amber-500/5'
-                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30 shadow-emerald-500/5'
-                }`}
-              >
-                {pdv.active ? (
-                  <>
-                    <Pause className="w-4 h-4" />
-                    <span>Mettre en pause</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    <span>Réactiver</span>
-                  </>
-                )}
+                <Trash2 className="w-4 h-4" />
+                <span>Supprimer cette boutique</span>
               </button>
             </div>
           )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+// Modal de confirmation suppression boutique
+function DeletePDVModal({
+  pdv,
+  onClose,
+  onConfirm,
+  loading,
+}: {
+  pdv: PointDeVente;
+  onClose: () => void;
+  onConfirm: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={() => !loading && onClose()}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 24 }}
+        className="relative w-full max-w-md bg-slate-900 border border-rose-500/30 rounded-3xl p-6 shadow-2xl z-10 space-y-5"
+      >
+        {/* Header */}
+        <div className="flex items-start gap-4">
+          <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex-shrink-0">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-white">Supprimer la boutique</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Vous êtes sur le point de supprimer <strong className="text-white">{pdv.nom}</strong>
+              <span className="text-slate-500"> ({pdv.codeBoutique})</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Info box */}
+        <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-2">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <span>{pdv.ville}, Guinée</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Users className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <span>{pdv._count.vendeurs} vendeur(s) affecté(s) à cette boutique</span>
+          </div>
+          {(pdv.stockInfo?.quantite || 0) > 0 && (
+            <div className="flex items-center gap-2">
+              <Boxes className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <span>{pdv.stockInfo?.quantite} articles en stock — données conservées si historique</span>
+            </div>
+          )}
+          <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800">
+            ⚠️ Si cette boutique possède des ventes, factures ou achats enregistrés, elle sera
+            <strong className="text-amber-400"> archivée et désactivée</strong> afin de préserver l&apos;intégrité comptable. Sinon, elle sera <strong className="text-rose-400">définitivement supprimée</strong>.
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-colors"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onConfirm}
+            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{loading ? 'Suppression...' : 'Confirmer la Suppression'}</span>
+          </button>
         </div>
       </motion.div>
     </div>
@@ -479,6 +605,8 @@ export default function PointsDeVentePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [editingPDV, setEditingPDV] = useState<PointDeVente | null>(null);
   const [selectedPDV, setSelectedPDV] = useState<PointDeVente | null>(null);
+  const [deletingPDV, setDeletingPDV] = useState<PointDeVente | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterVille, setFilterVille] = useState<string>('all');
 
   const handleTogglePause = async (pdv: PointDeVente, e?: React.MouseEvent) => {
@@ -498,6 +626,32 @@ export default function PointsDeVentePage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleConfirmDeletePDV = async () => {
+    if (!deletingPDV) return;
+    setDeleteLoading(true);
+    try {
+      const res = await fetch(`/api/points-de-vente?id=${deletingPDV.id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (json.success) {
+        setDeletingPDV(null);
+        if (selectedPDV?.id === deletingPDV.id) setSelectedPDV(null);
+        await fetchPoints();
+        if (json.archived) {
+          alert(json.message);
+        }
+      } else {
+        alert(json.error || 'Erreur lors de la suppression');
+      }
+    } catch (err) {
+      console.error('Erreur suppression boutique:', err);
+      alert('Erreur réseau lors de la suppression');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -668,6 +822,26 @@ export default function PointsDeVentePage() {
                     <span>{p.adresse ? `${p.adresse}, ` : ''}{p.ville}, Guinée</span>
                   </div>
 
+                  {/* Stock Highlight Card */}
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Boxes className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-[9px] font-bold text-emerald-300 uppercase tracking-wide">
+                          Valeur Stock Magasin
+                        </p>
+                        <p className="text-sm font-black text-emerald-400">
+                          {formatCurrency(p.stockInfo?.montant || 0)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[11px] font-bold text-white bg-slate-900/90 px-2 py-0.5 rounded-lg border border-slate-700">
+                        {p.stockInfo?.quantite || 0} unités
+                      </span>
+                    </div>
+                  </div>
+
                   {/* Stats Grid */}
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
@@ -717,38 +891,48 @@ export default function PointsDeVentePage() {
 
                   {/* Actions Rapides — Admin uniquement */}
                   {isAdmin && (
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingPDV(p);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all shadow-sm"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Modifier</span>
-                      </button>
+                    <div className="pt-2 border-t border-slate-800 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPDV(p);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold transition-all shadow-sm"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Modifier</span>
+                        </button>
 
+                        <button
+                          onClick={(e) => handleTogglePause(p, e)}
+                          title={p.active ? "Mettre en pause les activités de cette boutique" : "Réactiver la boutique"}
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+                            p.active
+                              ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                              : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          }`}
+                        >
+                          {p.active ? (
+                            <>
+                              <Pause className="w-3.5 h-3.5" />
+                              <span>Mettre en pause</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5" />
+                              <span>Réactiver</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <button
-                        onClick={(e) => handleTogglePause(p, e)}
-                        title={p.active ? "Mettre en pause les activités de cette boutique" : "Réactiver la boutique"}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all border shadow-sm ${
-                          p.active
-                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-                            : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                        }`}
+                        onClick={(e) => { e.stopPropagation(); setDeletingPDV(p); }}
+                        title="Supprimer cette boutique"
+                        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all"
                       >
-                        {p.active ? (
-                          <>
-                            <Pause className="w-3.5 h-3.5" />
-                            <span>Mettre en pause</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-3.5 h-3.5" />
-                            <span>Réactiver</span>
-                          </>
-                        )}
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Supprimer</span>
                       </button>
                     </div>
                   )}
@@ -792,7 +976,19 @@ export default function PointsDeVentePage() {
               setEditingPDV(pdv);
             }}
             onTogglePause={(pdv) => handleTogglePause(pdv)}
+            onDelete={(pdv) => {
+              setSelectedPDV(null);
+              setDeletingPDV(pdv);
+            }}
             isAdmin={isAdmin}
+          />
+        )}
+        {deletingPDV && (
+          <DeletePDVModal
+            pdv={deletingPDV}
+            onClose={() => setDeletingPDV(null)}
+            onConfirm={handleConfirmDeletePDV}
+            loading={deleteLoading}
           />
         )}
       </AnimatePresence>

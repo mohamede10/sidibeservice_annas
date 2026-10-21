@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
       montantPaye = 0,
       notes = '',
       pointVenteId = 1,
+      vendeurId,
     } = body;
 
     if (!cartItems || cartItems.length === 0) {
@@ -30,6 +31,13 @@ export async function POST(request: NextRequest) {
     const statutPaiement = restant <= 0 ? 'PAYE' : paye > 0 ? 'PARTIEL' : 'IMPAYE';
     const referenceVente = `VTE-${Date.now().toString().slice(-6)}`;
     const numeroFacture = `FAC-${Date.now().toString().slice(-6)}`;
+    const pvId = parseInt(String(pointVenteId)) || 1;
+
+    // Récupérer le nom du point de vente
+    const pdv = await prisma.pointDeVente.findUnique({
+      where: { id: pvId },
+      select: { nom: true },
+    });
 
     // Exécution transactionnelle
     const result = await prisma.$transaction(async (tx) => {
@@ -45,7 +53,9 @@ export async function POST(request: NextRequest) {
           nomClient: nomClient || (clientId ? undefined : 'Client de passage'),
           telephoneClient: telephoneClient || undefined,
           clientId: clientId ? parseInt(String(clientId)) : undefined,
-          pointVenteId: parseInt(String(pointVenteId)),
+          vendeurId: vendeurId ? parseInt(String(vendeurId)) : undefined,
+          pointVenteId: pvId,
+          pointVenteNom: pdv?.nom || `Boutique #${pvId}`,
           notes: notes || undefined,
           lignes: {
             create: cartItems.map((item: {

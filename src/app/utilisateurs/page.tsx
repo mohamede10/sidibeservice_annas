@@ -21,6 +21,8 @@ import {
   Key,
   Search,
   Filter,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -239,12 +241,14 @@ function UserModal({
 }
 
 export default function UsersPage() {
-  const { isAdmin, isGerant } = useAuth();
+  const { user, isAdmin, isGerant } = useAuth();
   const [users, setUsers] = useState<UserData[]>([]);
   const [pdvList, setPdvList] = useState<PointDeVenteSimple[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editUser, setEditUser] = useState<UserData | undefined>();
+  const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
 
@@ -278,6 +282,28 @@ export default function UsersPage() {
     fetchData();
   };
 
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      setDeletingUser(true);
+      const res = await fetch(`/api/users?id=${userToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (json.success) {
+        setUserToDelete(null);
+        fetchData();
+      } else {
+        alert(json.error || 'Erreur lors de la suppression');
+      }
+    } catch (err) {
+      console.error('Erreur suppression utilisateur:', err);
+      alert('Erreur réseau lors de la suppression');
+    } finally {
+      setDeletingUser(false);
+    }
+  };
+
   const filtered = users.filter((u) => {
     const matchSearch = !search || u.nom.toLowerCase().includes(search.toLowerCase()) || u.login.toLowerCase().includes(search.toLowerCase());
     const matchRole = filterRole === 'all' || u.role === filterRole;
@@ -306,7 +332,7 @@ export default function UsersPage() {
           {(isAdmin || isGerant) && (
             <button
               onClick={() => { setEditUser(undefined); setShowModal(true); }}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl btn-gold text-sm font-bold"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl btn-gold text-sm font-bold shadow-lg shadow-amber-500/20"
             >
               <UserPlus className="w-4 h-4" />
               Nouvel Utilisateur
@@ -387,7 +413,7 @@ export default function UsersPage() {
                   {u.ville && (
                     <div className="flex items-center gap-1.5 text-xs text-slate-400">
                       <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                      <span>{u.ville}, Mali</span>
+                      <span>{u.ville}, Guinée</span>
                     </div>
                   )}
                   {u.telephone && (
@@ -410,12 +436,29 @@ export default function UsersPage() {
                     >
                       {u.active ? <><ToggleRight className="w-3.5 h-3.5" />Actif</> : <><ToggleLeft className="w-3.5 h-3.5" />Inactif</>}
                     </button>
-                    <button
-                      onClick={() => { setEditUser(u); setShowModal(true); }}
-                      className="ml-auto p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <button
+                        onClick={() => { setEditUser(u); setShowModal(true); }}
+                        title="Modifier l'utilisateur"
+                        className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setUserToDelete(u)}
+                          disabled={u.id === user?.id}
+                          title={u.id === user?.id ? 'Vous ne pouvez pas supprimer votre propre compte' : 'Supprimer cet utilisateur'}
+                          className={`p-2 rounded-xl transition-colors ${
+                            u.id === user?.id
+                              ? 'bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800'
+                              : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30'
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </motion.div>
@@ -424,7 +467,7 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal Edition / Creation */}
       <AnimatePresence>
         {showModal && (
           <UserModal
@@ -433,6 +476,67 @@ export default function UsersPage() {
             onClose={() => { setShowModal(false); setEditUser(undefined); }}
             onSuccess={fetchData}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Modal Confirmation Suppression Utilisateur */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+              onClick={() => !deletingUser && setUserToDelete(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl z-10 space-y-4"
+            >
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex-shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-white">Supprimer l&apos;utilisateur</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Êtes-vous sûr de vouloir supprimer le compte de <strong>{userToDelete.nom}</strong> (@{userToDelete.login}) ?
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-1">
+                <p>• Rôle : <strong className="text-amber-400">{userToDelete.role}</strong></p>
+                <p>• Point de Vente : <strong>{userToDelete.pointVenteDefaut?.nom || 'Non rattaché'}</strong></p>
+                <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-800 mt-2">
+                  Si cet utilisateur figure sur des factures ou ventes existantes, son compte sera automatiquement désactivé et archivé pour préserver l&apos;historique comptable sans rupture.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  disabled={deletingUser}
+                  onClick={() => setUserToDelete(null)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingUser}
+                  onClick={handleConfirmDeleteUser}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{deletingUser ? 'Suppression...' : 'Confirmer la Suppression'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

@@ -23,6 +23,8 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
+import { useAuth } from '@/contexts/AuthContext';
+import { Store } from 'lucide-react';
 
 interface Variante {
   id: number;
@@ -217,6 +219,8 @@ export default function PosPage() {
     setIsCheckoutModalOpen(true);
   };
 
+  const { user, activePointVenteId } = useAuth();
+
   // Submit Checkout
   const handleValidateSale = async () => {
     if (cart.length === 0) return;
@@ -232,7 +236,8 @@ export default function PosPage() {
           telephoneClient: selectedClient?.telephone,
           modePaiement,
           montantPaye: modePaiement === 'CREDIT' ? 0 : montantPayeNumerique,
-          pointVenteId: 1,
+          pointVenteId: user?.pointVenteId || activePointVenteId || 1,
+          vendeurId: user?.id,
         }),
       });
 
