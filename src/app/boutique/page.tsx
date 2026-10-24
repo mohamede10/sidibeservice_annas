@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import PWAInstallPrompt, { InstallAppButton } from '@/components/PWAInstallPrompt';
 
 interface Variante {
   id: number;
@@ -445,8 +446,11 @@ export default function BoutiqueVitrinePage() {
             </div>
           </div>
 
-          {/* Actions Droite : Panier & BOUTON LOGIN DANS L'ONGLET */}
-          <div className="flex items-center gap-3">
+          {/* Actions Droite : Bouton Installer PWA, Panier & BOUTON LOGIN DANS L'ONGLET */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Bouton Installer l'application Sidibe Multi-Services */}
+            <InstallAppButton variant="header" />
+
             {/* Bouton Panier Interactif */}
             <button
               onClick={() => setCartOpen(true)}
@@ -594,6 +598,11 @@ export default function BoutiqueVitrinePage() {
                   <ShieldCheck className="w-4 h-4 text-blue-400" />
                   <span>Paiement à la Livraison</span>
                 </div>
+              </div>
+
+              {/* Bouton d'action directe d'installation PWA */}
+              <div className="pt-2 flex justify-center lg:justify-start">
+                <InstallAppButton variant="hero" />
               </div>
             </div>
 
@@ -1501,6 +1510,9 @@ export default function BoutiqueVitrinePage() {
           </div>
         </div>
       </footer>
+
+      {/* Pop-up flottant d'installation PWA Sidibe Multi-Services */}
+      <PWAInstallPrompt />
     </div>
   );
 }

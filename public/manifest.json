@@ -1,66 +1,74 @@
 {
-  "name": "Sidibe Services — ERP Gestion",
-  "short_name": "Sidibe ERP",
-  "description": "Gestion commerciale multi-boutiques : ventes, stock, caisse et rapports pour Sidibe Services",
-  "start_url": "/",
+  "name": "Sidibe Multi-Services",
+  "short_name": "Sidibe Services",
+  "description": "Boutique en ligne & application officielle de Sidibe Multi-Services. Décoration d'intérieur, rideaux luxueux, draps & parures de lit, tapis et mobilier en Guinée.",
+  "id": "/boutique",
+  "start_url": "/boutique?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#090d16",
   "theme_color": "#f59e0b",
   "lang": "fr",
-  "categories": ["business", "finance", "productivity"],
+  "categories": ["shopping", "business", "lifestyle"],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
       "sizes": "72x72",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-96x96.png",
       "sizes": "96x96",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-128x128.png",
       "sizes": "128x128",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-144x144.png",
       "sizes": "144x144",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-152x152.png",
       "sizes": "152x152",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-384x384.png",
       "sizes": "384x384",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any maskable"
     }
   ],
   "shortcuts": [
+    {
+      "name": "Boutique en ligne",
+      "short_name": "Boutique",
+      "description": "Explorer le catalogue et commander",
+      "url": "/boutique",
+      "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
+    },
     {
       "name": "Point de Vente (POS)",
       "short_name": "Caisse",
@@ -76,20 +84,27 @@
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     },
     {
-      "name": "Produits & Stock",
-      "short_name": "Stock",
-      "description": "Gérer le catalogue produits",
+      "name": "Catalogue & Stock",
+      "short_name": "Produits",
+      "description": "Gérer le catalogue de produits",
       "url": "/produits",
       "icons": [{ "src": "/icons/icon-96x96.png", "sizes": "96x96" }]
     }
   ],
   "screenshots": [
     {
-      "src": "/icons/screenshot-mobile.png",
-      "sizes": "390x844",
+      "src": "/img/design2.png",
+      "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Dashboard Sidibe Services sur mobile"
+      "label": "Boutique Sidibe Multi-Services sur mobile"
+    },
+    {
+      "src": "/img/design3.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Boutique Sidibe Multi-Services sur ordinateur"
     }
   ],
   "prefer_related_applications": false

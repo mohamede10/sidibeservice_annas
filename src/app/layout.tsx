@@ -5,13 +5,13 @@ import DashboardLayout from '@/components/DashboardLayout';
 import { AuthProvider } from '@/contexts/AuthContext';
 
 export const metadata: Metadata = {
-  title: 'Sidibe Services — ERP Gestion Multi-Boutiques',
-  description: 'Gestion commerciale multi-points de vente, stock, caisse, factures et rapports pour Sidibe Services',
+  title: 'Sidibe Multi-Services — Boutique & Gestion',
+  description: 'Boutique officielle et gestion commerciale Sidibe Multi-Services. Décoration, rideaux, linge de lit, tapis et mobilier en Guinée.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Sidibe ERP',
+    title: 'Sidibe Multi-Services',
     startupImage: [
       {
         url: '/icons/icon-512x512.png',
@@ -24,9 +24,9 @@ export const metadata: Metadata = {
   },
   openGraph: {
     type: 'website',
-    siteName: 'Sidibe Services ERP',
-    title: 'Sidibe Services — ERP Gestion Multi-Boutiques',
-    description: 'Gestion commerciale multi-points de vente, stock, caisse et rapports',
+    siteName: 'Sidibe Multi-Services',
+    title: 'Sidibe Multi-Services — Boutique & Gestion',
+    description: 'Boutique officielle et gestion commerciale multi-boutiques Sidibe Multi-Services',
   },
   icons: {
     icon: [
@@ -61,13 +61,13 @@ export default function RootLayout({
         {/* PWA Meta Tags — iOS Safari */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="Sidibe ERP" />
+        <meta name="apple-mobile-web-app-title" content="Sidibe Multi-Services" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192x192.png" />
 
         {/* PWA Meta Tags — Android & général */}
-        <meta name="application-name" content="Sidibe ERP" />
+        <meta name="application-name" content="Sidibe Multi-Services" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="msapplication-TileColor" content="#090d16" />
         <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />

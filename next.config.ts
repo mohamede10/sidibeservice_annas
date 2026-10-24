@@ -6,7 +6,7 @@ const withPWA = withPWAInit({
   dest: "public",
   register: true,
   sw: "sw.js",
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "development" && process.env.ENABLE_PWA !== "true",
   publicExcludes: ["!icons/**/*", "!manifest.json"],
   workboxOptions: {
     skipWaiting: true,
