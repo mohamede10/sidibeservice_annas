@@ -10,22 +10,12 @@ import {
   PlusSquare,
   CheckCircle2,
   Sparkles,
-  ArrowRight,
   ShieldCheck,
   Zap,
 } from 'lucide-react';
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-}
-
-declare global {
-  interface WindowEventMap {
-    beforeinstallprompt: BeforeInstallPromptEvent;
-    appinstalled: Event;
-  }
-}
+// ⚠️ NE PAS redéclarer BeforeInstallPromptEvent ici.
+// Il est déclaré globalement dans src/types/pwa.d.ts
 
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -53,20 +43,19 @@ export default function PWAInstallPrompt() {
     const isIosDevice = /iphone|ipad|ipod/.test(ua);
     setIsIOS(isIosDevice);
 
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
     // 3. Écoute de l'événement PWA standard (Android, Chrome, Edge, Brave, etc.)
     const handleBeforeInstallPrompt = (e: BeforeInstallPromptEvent) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setIsSupportedBrowser(true);
 
-      // Vérifier si l'utilisateur n'a pas déjà fermé le pop-up pendant cette session
       const dismissed = sessionStorage.getItem('sidibe_pwa_dismissed');
       if (!dismissed) {
-        // Apparition douce du pop après 2.5 secondes
-        const timer = setTimeout(() => {
+        timer = setTimeout(() => {
           setShowPopBanner(true);
         }, 2500);
-        return () => clearTimeout(timer);
       }
     };
 
@@ -83,19 +72,19 @@ export default function PWAInstallPrompt() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // Si sur iOS et pas encore en standalone, proposer également le pop s'il n'a pas été ignoré
+    // Sur iOS et pas encore en standalone, proposer également le pop
     if (isIosDevice) {
       setIsSupportedBrowser(true);
       const dismissed = sessionStorage.getItem('sidibe_pwa_dismissed');
       if (!dismissed) {
-        const timer = setTimeout(() => {
+        timer = setTimeout(() => {
           setShowPopBanner(true);
         }, 3000);
-        return () => clearTimeout(timer);
       }
     }
 
     return () => {
+      if (timer) clearTimeout(timer);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
@@ -115,14 +104,11 @@ export default function PWAInstallPrompt() {
       } catch (err) {
         console.error('Erreur lors du prompt PWA:', err);
       }
-    } else if (isIOS) {
-      // Sur iOS Safari, afficher les instructions interactives
-      setShowModal(true);
     } else {
-      // Navigateur desktop ou sans prompt direct
+      // iOS Safari ou navigateurs sans prompt direct : afficher les instructions
       setShowModal(true);
     }
-  }, [deferredPrompt, isIOS]);
+  }, [deferredPrompt]);
 
   // Fermer le pop banner
   const dismissPop = () => {
@@ -130,7 +116,6 @@ export default function PWAInstallPrompt() {
     sessionStorage.setItem('sidibe_pwa_dismissed', 'true');
   };
 
-  // Si l'application est déjà installée et ouverte en mode standalone, masquer le banner
   if (isStandalone) {
     return null;
   }
@@ -138,7 +123,7 @@ export default function PWAInstallPrompt() {
   return (
     <>
       {/* =========================================================================
-          1. BOUTON POP FLOTTANT EN BAS DE PAGE (POPUP D'INSTALLATION)
+          1. BOUTON POP FLOTTANT EN BAS DE PAGE
       ========================================================================= */}
       <AnimatePresence>
         {showPopBanner && (
@@ -150,11 +135,9 @@ export default function PWAInstallPrompt() {
             className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-50 pointer-events-auto"
           >
             <div className="relative rounded-3xl bg-[#0b101c]/95 border border-amber-500/40 p-4 sm:p-5 shadow-2xl shadow-black/80 backdrop-blur-xl overflow-hidden">
-              {/* Effet lumineux d'arrière-plan */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/15 rounded-full blur-2xl pointer-events-none" />
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-amber-400/10 rounded-full blur-xl pointer-events-none" />
 
-              {/* Bouton Fermer */}
               <button
                 onClick={dismissPop}
                 className="absolute top-3.5 right-3.5 p-1.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
@@ -164,7 +147,6 @@ export default function PWAInstallPrompt() {
               </button>
 
               <div className="flex items-start gap-3.5 pr-6">
-                {/* Logo App */}
                 <div className="relative flex-shrink-0 w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-lg shadow-amber-500/25">
                   <div className="w-full h-full bg-[#0a0f1d] rounded-[14px] flex items-center justify-center overflow-hidden">
                     <img
@@ -176,13 +158,11 @@ export default function PWAInstallPrompt() {
                       }}
                     />
                   </div>
-                  {/* Badge Étoile */}
                   <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-black flex items-center justify-center shadow">
                     ★
                   </span>
                 </div>
 
-                {/* Contenu Texte */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
@@ -198,7 +178,6 @@ export default function PWAInstallPrompt() {
                 </div>
               </div>
 
-              {/* Avantages PWA en pastilles */}
               <div className="mt-3.5 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-300">
                 <span className="flex items-center gap-1">
                   <Zap className="w-3.5 h-3.5 text-amber-400" />
@@ -214,7 +193,6 @@ export default function PWAInstallPrompt() {
                 </span>
               </div>
 
-              {/* Actions */}
               <div className="mt-4 flex items-center gap-2.5">
                 <button
                   onClick={triggerInstall}
@@ -236,7 +214,7 @@ export default function PWAInstallPrompt() {
       </AnimatePresence>
 
       {/* =========================================================================
-          2. MODAL D'INSTRUCTIONS (Pour iOS Safari ou Navigateurs sans prompt direct)
+          2. MODAL D'INSTRUCTIONS
       ========================================================================= */}
       <AnimatePresence>
         {showModal && (
@@ -255,7 +233,6 @@ export default function PWAInstallPrompt() {
               exit={{ opacity: 0, scale: 0.92, y: 20 }}
               className="relative w-full max-w-md bg-[#0b101c] border border-amber-500/40 rounded-3xl p-6 shadow-2xl shadow-black z-10 text-white"
             >
-              {/* Bouton Fermer */}
               <button
                 onClick={() => setShowModal(false)}
                 className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800/80 text-slate-400 hover:text-white"
@@ -291,7 +268,6 @@ export default function PWAInstallPrompt() {
               </div>
 
               {isIOS ? (
-                /* Instructions spécifiques pour iPhone / Safari */
                 <div className="space-y-3.5 mb-6 text-xs text-slate-200">
                   <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
                     <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 font-black flex items-center justify-center flex-shrink-0">
@@ -336,7 +312,6 @@ export default function PWAInstallPrompt() {
                   </div>
                 </div>
               ) : (
-                /* Instructions génériques pour Android / Chrome Desktop */
                 <div className="space-y-3.5 mb-6 text-xs text-slate-200">
                   <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-start gap-3">
                     <Download className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -392,7 +367,7 @@ export default function PWAInstallPrompt() {
 }
 
 // =============================================================================
-// COMPOSANT BOUTON D'INSTALLATION DÉDIÉ (Pour Navbar, Header, Hero ou Footer)
+// COMPOSANT BOUTON D'INSTALLATION DÉDIÉ
 // =============================================================================
 export function InstallAppButton({
   className = '',
@@ -495,7 +470,6 @@ export function InstallAppButton({
         </button>
       )}
 
-      {/* Modal d'instructions si pas de prompt natif */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
