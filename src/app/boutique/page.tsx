@@ -380,7 +380,7 @@ export default function BoutiqueVitrinePage() {
         <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="p-1 rounded-full bg-black/10">🇬🇳</span>
-            <span>SIDIBE SERVICES • Kankan & Livraison dans toute la Guinée</span>
+            <span>SIDIBE MULTISERVICES •</span>
           </div>
           <div className="hidden sm:flex items-center gap-4 text-xs font-semibold">
             <span className="flex items-center gap-1">
@@ -411,13 +411,7 @@ export default function BoutiqueVitrinePage() {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-base sm:text-lg font-black tracking-tight text-white group-hover:text-amber-400 transition-colors">
-                  SIDIBE <span className="text-gold-gradient">SERVICES</span>
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold uppercase">
-                  Boutique
-                </span>
-              </div>
+                </div>
               <p className="text-[11px] text-slate-400 -mt-0.5 hidden xs:block">
                 Décoration • Tapis • Linge de Lit • Intérieur
               </p>
@@ -491,7 +485,7 @@ export default function BoutiqueVitrinePage() {
                 title="Connexion Espace Équipe / Gestionnaire"
               >
                 <LogIn className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-                <span>Connexion / Login</span>
+                <span>Connexion</span>
               </Link>
             )}
           </div>
