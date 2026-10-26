@@ -24,6 +24,9 @@ import {
   Filter,
   Layers,
   Boxes,
+  Banknote,
+  ArrowLeftRight,
+  Truck,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -193,6 +196,18 @@ export default function DashboardPage() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span className="hidden sm:inline">Actualiser</span>
             </button>
+            <Link href="/virements">
+              <button className="px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-sm font-bold flex items-center gap-2 transition-all">
+                <Banknote className="w-4 h-4" />
+                <span>Caisse Virement</span>
+              </button>
+            </Link>
+            <Link href="/transferts">
+              <button className="px-4 py-3 rounded-2xl bg-slate-900/80 border border-slate-700 text-slate-300 hover:text-white text-sm font-bold flex items-center gap-2 transition-all">
+                <ArrowLeftRight className="w-4 h-4" />
+                <span className="hidden sm:inline">Transferts</span>
+              </button>
+            </Link>
             <Link href="/pos">
               <motion.button
                 whileHover={{ scale: 1.03 }}
@@ -399,7 +414,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
             {data.boutiquesBreakdown.map((b) => (
               <div
                 key={b.pointVenteId}

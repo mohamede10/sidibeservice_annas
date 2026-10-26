@@ -53,10 +53,10 @@ export async function POST(req: NextRequest) {
       login: user.login,
       role: user.role,
       profil: user.profil || (user.role === 'ADMIN' ? 'Administrateur Général' : 'Collaborateur'),
-      ville: user.ville || 'Bamako',
+      ville: user.ville || 'Kankan',
       pointVenteId: user.pointVenteId || user.pointVenteDefaut?.id || 1,
-      pointVenteNom: user.pointVenteDefaut?.nom || 'Boutique Principale Bamako',
-      pointVenteCode: user.pointVenteDefaut?.codeBoutique || 'BAM-01',
+      pointVenteNom: user.pointVenteDefaut?.nom || 'Boutique Principale Kankan',
+      pointVenteCode: user.pointVenteDefaut?.codeBoutique || 'KAN-01',
     };
 
     return NextResponse.json({

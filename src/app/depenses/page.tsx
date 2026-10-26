@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Depense {
   id: number;
@@ -93,13 +94,18 @@ function CreateDepenseModal({ pdvList, onClose, onSuccess, defaultPdvId }: {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { showSuccess, showError, showWarning } = useToast();
 
   const set = (key: keyof DepenseFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.montant || parseFloat(form.montant) <= 0) { setError('Montant invalide'); return; }
+    if (!form.montant || parseFloat(form.montant) <= 0) {
+      setError('Montant invalide');
+      showWarning('Veuillez saisir un montant valide.');
+      return;
+    }
     setLoading(true); setError('');
     try {
       const res = await fetch('/api/depenses', {
@@ -108,9 +114,19 @@ function CreateDepenseModal({ pdvList, onClose, onSuccess, defaultPdvId }: {
         body: JSON.stringify(form),
       });
       const json = await res.json();
-      if (json.success) { onSuccess(); onClose(); }
-      else setError(json.error || 'Erreur');
-    } catch { setError('Erreur réseau'); }
+      if (json.success) {
+        showSuccess('La dépense a été enregistrée.', 'Dépense créée');
+        onSuccess();
+        onClose();
+      } else {
+        const msg = json.error || 'Erreur lors de l\'enregistrement';
+        setError(msg);
+        showError(msg, 'Erreur dépense');
+      }
+    } catch {
+      setError('Erreur réseau');
+      showError('Erreur réseau lors de l\'enregistrement', 'Erreur réseau');
+    }
     finally { setLoading(false); }
   };
 
@@ -180,11 +196,13 @@ export default function DepensesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
+  const [filterPdv, setFilterPdv] = useState(activePointVenteId ? String(activePointVenteId) : '');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const pvParam = activePointVenteId ? `?pointVenteId=${activePointVenteId}` : '';
+      const targetPdv = filterPdv || (activePointVenteId && !isAdmin ? String(activePointVenteId) : '');
+      const pvParam = targetPdv ? `?pointVenteId=${targetPdv}` : '';
       const [dRes, pRes] = await Promise.all([
         fetch(`/api/depenses${pvParam}`),
         fetch('/api/points-de-vente'),
@@ -194,7 +212,7 @@ export default function DepensesPage() {
       if (pJson.success) setPdvList(pJson.pointsDeVente || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [activePointVenteId]);
+  }, [filterPdv, activePointVenteId, isAdmin]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -245,12 +263,29 @@ export default function DepensesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-3">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher par motif ou bénéficiaire..."
             className="w-full bg-slate-900/80 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500/60 transition-all placeholder:text-slate-600" />
+        </div>
+
+        {/* Boutique filter for Admin */}
+        <div className="relative">
+          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
+          <select
+            value={filterPdv}
+            onChange={(e) => setFilterPdv(e.target.value)}
+            className="pl-9 pr-8 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">Toutes les Boutiques</option>
+            {pdvList.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nom} ({p.codeBoutique})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

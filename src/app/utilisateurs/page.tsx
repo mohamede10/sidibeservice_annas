@@ -25,6 +25,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface PointDeVenteSimple {
   id: number;
@@ -112,11 +113,12 @@ function UserModal({
     email: user?.email || '',
     role: user?.role || 'VENDEUR',
     pointVenteId: user?.pointVenteId ? String(user.pointVenteId) : '',
-    ville: user?.ville || 'Bamako',
+    ville: user?.ville || 'Kankan',
     profil: user?.profil || '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { showSuccess, showError } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,13 +133,20 @@ function UserModal({
       });
       const json = await res.json();
       if (json.success) {
+        showSuccess(
+          isEdit ? 'Les informations ont été mises à jour.' : 'Le compte a été créé avec succès.',
+          isEdit ? 'Utilisateur modifié' : 'Utilisateur créé'
+        );
         onSuccess();
         onClose();
       } else {
-        setError(json.error || 'Erreur');
+        const msg = json.error || 'Erreur lors de l\'enregistrement';
+        setError(msg);
+        showError(msg, 'Erreur utilisateur');
       }
     } catch {
       setError('Erreur réseau');
+      showError('Erreur réseau lors de l\'enregistrement', 'Erreur réseau');
     } finally {
       setLoading(false);
     }
@@ -171,7 +180,7 @@ function UserModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <InputField label="Nom complet *" id="nom" value={form.nom} onChange={set('nom')} placeholder="Prénom Nom" required />
-            <InputField label="Login *" id="login" value={form.login} onChange={set('login')} placeholder="vendeur.bamako" required disabled={isEdit} />
+            <InputField label="Login *" id="login" value={form.login} onChange={set('login')} placeholder="vendeur.Kankan" required disabled={isEdit} />
           </div>
 
           <SelectField label="Rôle *" id="role" value={form.role} onChange={set('role')}>
@@ -203,8 +212,8 @@ function UserModal({
           </SelectField>
 
           <div className="grid grid-cols-2 gap-3">
-            <InputField label="Téléphone" id="tel" value={form.telephone} onChange={set('telephone')} placeholder="Ex :622 48 81 61" />
-            <InputField label="Email" id="email" type="email" value={form.email} onChange={set('email')} placeholder="Ex : nom@sidibe.ml" />
+            <InputField label="Téléphone" id="tel" value={form.telephone} onChange={set('telephone')} placeholder="Ex : 622 48 81 61" />
+            <InputField label="Email" id="email" type="email" value={form.email} onChange={set('email')} placeholder="Ex : sidibeoumar@gmail.com" />
           </div>
 
           <InputField label="Profil / Poste" id="profil" value={form.profil} onChange={set('profil')} placeholder="Ex: Caissier Principal" />
@@ -242,6 +251,7 @@ function UserModal({
 
 export default function UsersPage() {
   const { user, isAdmin, isGerant } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [users, setUsers] = useState<UserData[]>([]);
   const [pdvList, setPdvList] = useState<PointDeVenteSimple[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,12 +284,25 @@ export default function UsersPage() {
   }, [fetchData]);
 
   const toggleActive = async (u: UserData) => {
-    await fetch('/api/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: u.id, active: !u.active }),
-    });
-    fetchData();
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: u.id, active: !u.active }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        showSuccess(
+          u.active ? `${u.nom} a été désactivé.` : `${u.nom} a été réactivé.`,
+          u.active ? 'Compte désactivé' : 'Compte activé'
+        );
+        fetchData();
+      } else {
+        showError(json.error || 'Impossible de modifier le statut', 'Erreur statut');
+      }
+    } catch {
+      showError('Erreur réseau lors du changement de statut', 'Erreur réseau');
+    }
   };
 
   const handleConfirmDeleteUser = async () => {
@@ -293,12 +316,13 @@ export default function UsersPage() {
       if (json.success) {
         setUserToDelete(null);
         fetchData();
+        showSuccess('Utilisateur supprimé avec succès.', 'Suppression réussie');
       } else {
-        alert(json.error || 'Erreur lors de la suppression');
+        showError(json.error || 'Erreur lors de la suppression', 'Erreur suppression');
       }
     } catch (err) {
       console.error('Erreur suppression utilisateur:', err);
-      alert('Erreur réseau lors de la suppression');
+      showError('Erreur réseau lors de la suppression', 'Erreur réseau');
     } finally {
       setDeletingUser(false);
     }
@@ -449,11 +473,10 @@ export default function UsersPage() {
                           onClick={() => setUserToDelete(u)}
                           disabled={u.id === user?.id}
                           title={u.id === user?.id ? 'Vous ne pouvez pas supprimer votre propre compte' : 'Supprimer cet utilisateur'}
-                          className={`p-2 rounded-xl transition-colors ${
-                            u.id === user?.id
+                          className={`p-2 rounded-xl transition-colors ${u.id === user?.id
                               ? 'bg-slate-900 text-slate-600 cursor-not-allowed border border-slate-800'
                               : 'bg-slate-800 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/30'
-                          }`}
+                            }`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

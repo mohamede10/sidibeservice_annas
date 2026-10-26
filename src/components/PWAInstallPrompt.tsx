@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Zap,
 } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
 
 // ⚠️ NE PAS redéclarer BeforeInstallPromptEvent ici.
 // Il est déclaré globalement dans src/types/pwa.d.ts
@@ -381,6 +382,7 @@ export function InstallAppButton({
   const [isIOS, setIsIOS] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
+  const { showInfo } = useToast();
 
   useEffect(() => {
     const isStandaloneMode =
@@ -414,7 +416,7 @@ export function InstallAppButton({
 
   const handleClick = async () => {
     if (isStandalone) {
-      alert("L'application Sidibe Multi-Services est déjà installée sur votre appareil !");
+      showInfo("L'application Sidibe Multi-Services est déjà installée sur votre appareil !", 'Application installée');
       return;
     }
 

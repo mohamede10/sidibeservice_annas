@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Vendeur {
   id: number;
@@ -134,6 +135,7 @@ function PDVFormModal({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { showSuccess, showError } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -148,13 +150,20 @@ function PDVFormModal({
       });
       const json = await res.json();
       if (json.success) {
+        showSuccess(
+          isEdit ? 'La boutique a été mise à jour.' : 'Le point de vente a été créé.',
+          isEdit ? 'Boutique modifiée' : 'Boutique créée'
+        );
         onSuccess();
         onClose();
       } else {
-        setError(json.error || 'Erreur lors de l\'enregistrement');
+        const msg = json.error || 'Erreur lors de l\'enregistrement';
+        setError(msg);
+        showError(msg, 'Erreur boutique');
       }
     } catch {
       setError('Erreur réseau');
+      showError('Erreur réseau lors de l\'enregistrement', 'Erreur réseau');
     } finally {
       setLoading(false);
     }
@@ -515,13 +524,28 @@ function DeletePDVModal({
   pdv,
   onClose,
   onConfirm,
+  onTogglePause,
   loading,
 }: {
   pdv: PointDeVente;
   onClose: () => void;
   onConfirm: () => void;
+  onTogglePause: (pdv: PointDeVente) => Promise<void>;
   loading: boolean;
 }) {
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [pauseLoading, setPauseLoading] = useState(false);
+
+  const handlePauseClick = async () => {
+    try {
+      setPauseLoading(true);
+      await onTogglePause(pdv);
+      onClose();
+    } finally {
+      setPauseLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <motion.div
@@ -529,68 +553,137 @@ function DeletePDVModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={() => !loading && onClose()}
+        onClick={() => !loading && !pauseLoading && onClose()}
       />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: 24 }}
-        className="relative w-full max-w-md bg-slate-900 border border-rose-500/30 rounded-3xl p-6 shadow-2xl z-10 space-y-5"
+        className="relative w-full max-w-lg bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl z-10 space-y-5"
       >
         {/* Header */}
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex-shrink-0">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-lg font-black text-white">Supprimer la boutique</h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Vous êtes sur le point de supprimer <strong className="text-white">{pdv.nom}</strong>
-              <span className="text-slate-500"> ({pdv.codeBoutique})</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Info box */}
-        <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-xs text-slate-300 space-y-2">
-          <div className="flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-            <span>{pdv.ville}, Guinée</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-            <span>{pdv._count.vendeurs} vendeur(s) affecté(s) à cette boutique</span>
-          </div>
-          {(pdv.stockInfo?.quantite || 0) > 0 && (
-            <div className="flex items-center gap-2">
-              <Boxes className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-              <span>{pdv.stockInfo?.quantite} articles en stock — données conservées si historique</span>
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className="p-3 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex-shrink-0">
+              <AlertTriangle className="w-6 h-6" />
             </div>
-          )}
-          <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-800">
-            ⚠️ Si cette boutique possède des ventes, factures ou achats enregistrés, elle sera
-            <strong className="text-amber-400"> archivée et désactivée</strong> afin de préserver l&apos;intégrité comptable. Sinon, elle sera <strong className="text-rose-400">définitivement supprimée</strong>.
-          </p>
+            <div>
+              <h3 className="text-lg font-black text-white">Gestion & Suppression</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Boutique : <strong className="text-white">{pdv.nom}</strong>
+                <span className="text-amber-400 font-mono font-bold"> ({pdv.codeBoutique})</span> • {pdv.ville}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={loading || pauseLoading}
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+        {/* Data summary stats */}
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block uppercase">Statut</span>
+            <span className={`font-bold ${pdv.active ? 'text-emerald-400' : 'text-amber-400'}`}>
+              {pdv.active ? '🟢 Active' : '⏸️ En pause'}
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block uppercase">Stock</span>
+            <span className="font-bold text-white">{pdv.stockInfo?.quantite || 0} articles</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+            <span className="text-[10px] text-slate-400 block uppercase">Vendeurs</span>
+            <span className="font-bold text-sky-400">{pdv._count.vendeurs} affecté(s)</span>
+          </div>
+        </div>
+
+        {/* Option 1 : Suspendre / Réactiver (Sans suppression) */}
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+                {pdv.active ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                Option 1 : {pdv.active ? 'Suspendre la boutique' : 'Réactiver la boutique'}
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+              Recommandé
+            </span>
+          </div>
+          <p className="text-xs text-slate-300">
+            {pdv.active
+              ? 'Met la boutique en pause temporaire : les nouvelles ventes sont bloquées, mais toutes vos données (historique des factures, stocks, créances) sont conservées intactes.'
+              : 'La boutique est actuellement suspendue. Cliquez ci-dessous pour la réactiver et reprendre immédiatement les ventes.'}
+          </p>
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || pauseLoading}
+            onClick={handlePauseClick}
+            className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10"
+          >
+            {pauseLoading ? (
+              <span>Mise à jour...</span>
+            ) : pdv.active ? (
+              <>
+                <Pause className="w-3.5 h-3.5" />
+                <span>Mettre en pause (Suspendre sans supprimer)</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-3.5 h-3.5" />
+                <span>Réactiver la boutique maintenant</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Option 2 : Supprimer Définitivement (Cascade delete) */}
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 space-y-3">
+          <span className="text-rose-400 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5">
+            <Trash2 className="w-3.5 h-3.5" />
+            Option 2 : Suppression Définitive
+          </span>
+          <p className="text-xs text-slate-300">
+            ⚠️ <strong>Action irréversible :</strong> La boutique sera entièrement effacée de la base de données, <strong className="text-rose-400">même si elle contient des données</strong> (ventes, stocks, factures, transferts). Les vendeurs rattachés seront détachés.
+          </p>
+
+          <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
+            <input
+              type="checkbox"
+              checked={confirmChecked}
+              onChange={(e) => setConfirmChecked(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-950 text-rose-500 focus:ring-rose-500/30"
+            />
+            <span className="text-xs text-rose-200">
+              Je confirme vouloir supprimer définitivement <strong>{pdv.nom}</strong> et effacer toutes ses données associées.
+            </span>
+          </label>
+
+          <button
+            type="button"
+            disabled={!confirmChecked || loading || pauseLoading}
+            onClick={onConfirm}
+            className="w-full py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-black text-xs transition-colors flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 disabled:shadow-none"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{loading ? 'Suppression définitive en cours...' : 'Supprimer Définitivement cette Boutique'}</span>
+          </button>
+        </div>
+
+        {/* Cancel button */}
+        <div className="flex justify-end pt-1 border-t border-slate-800">
+          <button
+            type="button"
+            disabled={loading || pauseLoading}
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-colors"
           >
-            Annuler
-          </button>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={onConfirm}
-            className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>{loading ? 'Suppression...' : 'Confirmer la Suppression'}</span>
+            Fermer
           </button>
         </div>
       </motion.div>
@@ -600,6 +693,7 @@ function DeletePDVModal({
 
 export default function PointsDeVentePage() {
   const { user, isAdmin, isGerant } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [points, setPoints] = useState<PointDeVente[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -623,9 +717,16 @@ export default function PointsDeVentePage() {
         if (selectedPDV && selectedPDV.id === pdv.id) {
           setSelectedPDV((prev) => prev ? { ...prev, active: !prev.active } : null);
         }
+        showSuccess(
+          pdv.active ? `${pdv.nom} est maintenant en pause.` : `${pdv.nom} a été réactivée.`,
+          pdv.active ? 'Boutique en pause' : 'Boutique activée'
+        );
+      } else {
+        showError(data.error || 'Impossible de modifier le statut', 'Erreur boutique');
       }
     } catch (err) {
       console.error(err);
+      showError('Erreur réseau lors du changement de statut', 'Erreur réseau');
     }
   };
 
@@ -641,15 +742,16 @@ export default function PointsDeVentePage() {
         setDeletingPDV(null);
         if (selectedPDV?.id === deletingPDV.id) setSelectedPDV(null);
         await fetchPoints();
-        if (json.archived) {
-          alert(json.message);
-        }
+        showSuccess(
+          json.message || 'La boutique a été définitivement supprimée.',
+          'Boutique supprimée'
+        );
       } else {
-        alert(json.error || 'Erreur lors de la suppression');
+        showError(json.error || 'Erreur lors de la suppression', 'Erreur suppression');
       }
     } catch (err) {
       console.error('Erreur suppression boutique:', err);
-      alert('Erreur réseau lors de la suppression');
+      showError('Erreur réseau lors de la suppression', 'Erreur réseau');
     } finally {
       setDeleteLoading(false);
     }
@@ -750,7 +852,7 @@ export default function PointsDeVentePage() {
                   : 'bg-slate-900 border border-slate-700 text-slate-300 hover:text-white'
               }`}
             >
-              {v === 'all' ? '🌍 Toutes les villes' : `📍 ${v}`}
+              {v === 'all' ? ' Toutes les villes' : ` ${v}`}
             </button>
           ))}
         </div>
@@ -988,6 +1090,10 @@ export default function PointsDeVentePage() {
             pdv={deletingPDV}
             onClose={() => setDeletingPDV(null)}
             onConfirm={handleConfirmDeletePDV}
+            onTogglePause={async (p) => {
+              await handleTogglePause(p);
+              setDeletingPDV(null);
+            }}
             loading={deleteLoading}
           />
         )}

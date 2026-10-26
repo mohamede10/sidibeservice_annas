@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import PWAInstallPrompt, { InstallAppButton } from '@/components/PWAInstallPrompt';
 
 interface Variante {
@@ -140,6 +141,7 @@ const VILLES_GUINEE = [
 
 export default function BoutiqueVitrinePage() {
   const { user } = useAuth();
+  const { showSuccess, showError, showWarning } = useToast();
 
   // Produits et données
   const [produits, setProduits] = useState<Produit[]>([]);
@@ -182,14 +184,6 @@ export default function BoutiqueVitrinePage() {
     notes: '',
   });
 
-  // Notification Toast d'ajout
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
   // Chargement des produits vitrine
   const fetchBoutiqueData = async () => {
     setLoading(true);
@@ -203,6 +197,7 @@ export default function BoutiqueVitrinePage() {
       }
     } catch (err) {
       console.error('Erreur chargement vitrine:', err);
+      showError('Impossible de charger le catalogue de la boutique.', 'Erreur réseau');
     } finally {
       setLoading(false);
     }
@@ -267,6 +262,17 @@ export default function BoutiqueVitrinePage() {
     const v = varianteChoisie || produit.variantes[0];
     if (!v) return;
 
+    if (v.quantiteStock <= 0) {
+      showWarning(`Rupture de stock pour « ${produit.nom} ».`);
+      return;
+    }
+
+    const existing = cart.find((item) => item.varianteId === v.id);
+    if (existing && existing.quantite >= v.quantiteStock) {
+      showWarning(`Stock max atteint (${v.quantiteStock} disponibles)`);
+      return;
+    }
+
     const varianteInfo = [v.taille, v.couleur].filter(Boolean).join(' • ') || 'Standard';
 
     setCart((prev) => {
@@ -274,41 +280,48 @@ export default function BoutiqueVitrinePage() {
       if (existingIndex > -1) {
         const updated = [...prev];
         const newQte = updated[existingIndex].quantite + quantite;
-        updated[existingIndex].quantite = Math.min(newQte, v.quantiteStock > 0 ? v.quantiteStock : 99);
+        updated[existingIndex].quantite = Math.min(newQte, v.quantiteStock);
         return updated;
-      } else {
-        return [
-          ...prev,
-          {
-            produitId: produit.id,
-            varianteId: v.id,
-            nom: produit.nom,
-            varianteInfo,
-            prix: v.prix,
-            quantite: Math.min(quantite, v.quantiteStock > 0 ? v.quantiteStock : 99),
-            maxStock: v.quantiteStock,
-            categorieNom: produit.categorieNom,
-            imageUrl: getProductImage(produit),
-          },
-        ];
       }
+      return [
+        ...prev,
+        {
+          produitId: produit.id,
+          varianteId: v.id,
+          nom: produit.nom,
+          varianteInfo,
+          prix: v.prix,
+          quantite: Math.min(quantite, v.quantiteStock),
+          maxStock: v.quantiteStock,
+          categorieNom: produit.categorieNom,
+          imageUrl: getProductImage(produit),
+        },
+      ];
     });
 
-    showToast(`✅ "${produit.nom}" (${varianteInfo}) ajouté au panier !`);
+    showSuccess(`« ${produit.nom} » (${varianteInfo}) a été ajouté au panier.`, 'Panier');
   };
 
   // Mettre à jour quantité dans panier
   const updateCartQuantity = (varianteId: number, delta: number) => {
+    const item = cart.find((c) => c.varianteId === varianteId);
+    if (!item) return;
+    if (delta > 0 && item.maxStock > 0 && item.quantite >= item.maxStock) {
+      showWarning(`Stock max atteint (${item.maxStock} disponibles)`);
+      return;
+    }
     setCart((prev) =>
       prev
-        .map((item) => {
-          if (item.varianteId === varianteId) {
-            const nextQte = item.quantite + delta;
-            return { ...item, quantite: Math.max(1, nextQte) };
+        .map((cartItem) => {
+          if (cartItem.varianteId === varianteId) {
+            const nextQte = cartItem.quantite + delta;
+            const capped =
+              cartItem.maxStock > 0 ? Math.min(nextQte, cartItem.maxStock) : nextQte;
+            return { ...cartItem, quantite: Math.max(1, capped) };
           }
-          return item;
+          return cartItem;
         })
-        .filter((item) => item.quantite > 0)
+        .filter((cartItem) => cartItem.quantite > 0)
     );
   };
 
@@ -324,10 +337,13 @@ export default function BoutiqueVitrinePage() {
   // Soumission de commande
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.length === 0) return;
+    if (cart.length === 0) {
+      showWarning('Votre panier est vide.');
+      return;
+    }
 
     if (!formData.nomClient || !formData.telephoneClient) {
-      alert('Veuillez renseigner votre nom et votre numéro de téléphone.');
+      showWarning('Veuillez renseigner votre nom et votre numéro de téléphone.');
       return;
     }
 
@@ -353,12 +369,13 @@ export default function BoutiqueVitrinePage() {
         setOrderSuccess(json.commande);
         setCart([]);
         setCheckoutOpen(false);
+        showSuccess('Votre commande a été enregistrée.', 'Commande validée');
       } else {
-        alert(json.error || 'Erreur lors de la validation de la commande');
+        showError(json.error || 'Erreur lors de la validation de la commande', 'Erreur commande');
       }
     } catch (err) {
       console.error(err);
-      alert('Erreur réseau lors de la validation');
+      showError('Erreur réseau lors de la validation', 'Erreur réseau');
     } finally {
       setSubmittingOrder(false);
     }
@@ -377,7 +394,7 @@ export default function BoutiqueVitrinePage() {
           BARRE DE NOTIFICATION DU HAUT (TOP BANNER)
       ========================================================================= */}
       <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-md">
-        <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
+        <div className="w-full px-3 sm:px-5 lg:px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="p-1 rounded-full bg-black/10">🇬🇳</span>
             <span>SIDIBE MULTISERVICES •</span>
@@ -397,7 +414,7 @@ export default function BoutiqueVitrinePage() {
           HEADER / NAVBAR AVEC BOUTON LOGIN DANS L'ONGLET
       ========================================================================= */}
       <header className="sticky top-0 z-40 bg-[#090d16]/90 backdrop-blur-xl border-b border-slate-800 shadow-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
+        <div className="w-full px-3 sm:px-5 lg:px-6 py-3.5 flex items-center justify-between gap-4">
           {/* Logo et Nom de l'Enseigne */}
           <Link href="/boutique" className="flex items-center gap-3 group">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-600 p-0.5 shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
@@ -492,7 +509,7 @@ export default function BoutiqueVitrinePage() {
         </div>
 
         {/* Barre de recherche sur Mobile */}
-        <div className="px-4 pb-3 md:hidden">
+        <div className="px-3 sm:px-5 pb-3 md:hidden">
           <div className="relative w-full">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -554,7 +571,7 @@ export default function BoutiqueVitrinePage() {
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/8 rounded-full blur-3xl pointer-events-none z-[1]" />
         <div className="absolute bottom-0 left-10 w-80 h-80 bg-amber-400/5 rounded-full blur-3xl pointer-events-none z-[1]" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
+        <div className="w-full px-3 sm:px-5 lg:px-6 relative z-10">
           <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
             <div className="max-w-2xl space-y-4 text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300 text-xs font-bold tracking-wide backdrop-blur-sm shadow-lg shadow-amber-500/10">
@@ -590,7 +607,7 @@ export default function BoutiqueVitrinePage() {
                 </div>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-black/40 backdrop-blur-md border border-white/10 text-slate-200 shadow-lg">
                   <ShieldCheck className="w-4 h-4 text-blue-400" />
-                  <span>Paiement à la Livraison</span>
+                  <span>Paiement à la Livraison .LP</span>
                 </div>
               </div>
 
@@ -647,7 +664,7 @@ export default function BoutiqueVitrinePage() {
           SÉLECTEUR DE CATÉGORIES (HORIZONTAL SCROLL)
       ========================================================================= */}
       <section className="bg-[#090d17] border-b border-slate-800/80 py-4 sticky top-[69px] z-30 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+        <div className="w-full px-3 sm:px-5 lg:px-6">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-700">
             <button
               onClick={() => setSelectedCategorie('all')}
@@ -694,9 +711,9 @@ export default function BoutiqueVitrinePage() {
       {/* =========================================================================
           CATALOGUE PRODUITS & GRILLE E-COMMERCE
       ========================================================================= */}
-      <main id="catalogue-section" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <main id="catalogue-section" className="flex-1 w-full px-3 sm:px-5 lg:px-6 pt-6 pb-8 flex flex-col gap-6">
         {/* Barre de Filtres & Tri */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2.5">
               <span>{selectedCategorie === 'all' ? 'Catalogue Complet' : selectedCategorie}</span>
@@ -734,11 +751,11 @@ export default function BoutiqueVitrinePage() {
 
         {/* Grille de Produits */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 auto-rows-fr">
             {[...Array(8)].map((_, i) => (
               <div
                 key={i}
-                className="h-80 rounded-3xl bg-slate-900/60 border border-slate-800 animate-pulse flex flex-col p-4 justify-between"
+                className="h-full min-h-[22rem] rounded-3xl bg-slate-900/60 border border-slate-800 animate-pulse flex flex-col p-4 justify-between"
               >
                 <div className="h-44 rounded-2xl bg-slate-800/60" />
                 <div className="space-y-2">
@@ -749,7 +766,7 @@ export default function BoutiqueVitrinePage() {
             ))}
           </div>
         ) : filteredProduits.length === 0 ? (
-          <div className="py-20 text-center rounded-3xl bg-slate-900/40 border border-slate-800 p-8">
+          <div className="flex-1 py-20 text-center rounded-3xl bg-slate-900/40 border border-slate-800 p-8">
             <Store className="w-16 h-16 mx-auto mb-3 text-slate-600" />
             <h3 className="text-lg font-bold text-white mb-1">Aucun produit ne correspond à votre recherche</h3>
             <p className="text-xs text-slate-400 max-w-md mx-auto mb-5">
@@ -766,7 +783,7 @@ export default function BoutiqueVitrinePage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 auto-rows-fr">
             {filteredProduits.map((produit, index) => {
               const premiereVariante = produit.variantes[0];
               const prix = premiereVariante?.prix || 0;
@@ -780,10 +797,10 @@ export default function BoutiqueVitrinePage() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.03 }}
-                  className="group rounded-3xl bg-slate-900/70 border border-slate-800/90 hover:border-amber-500/40 transition-all duration-300 flex flex-col overflow-hidden hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1"
+                  className="group rounded-3xl bg-slate-900/70 border border-slate-800/90 hover:border-amber-500/40 transition-all duration-300 flex flex-col overflow-hidden h-full min-h-[22rem] hover:shadow-2xl hover:shadow-amber-500/5 hover:-translate-y-1"
                 >
                   {/* Visuel du Produit */}
-                  <div className="relative h-48 bg-gradient-to-br from-slate-800/80 to-slate-950 flex items-center justify-center p-4 overflow-hidden border-b border-slate-800/60">
+                  <div className="relative h-44 sm:h-52 lg:h-56 xl:flex-1 xl:min-h-[14rem] bg-gradient-to-br from-slate-800/80 to-slate-950 flex items-center justify-center p-3 overflow-hidden border-b border-slate-800/60">
                     {/* Badge Catégorie */}
                     <div className="absolute top-3 left-3 z-10">
                       <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-950/80 border border-slate-700/80 text-amber-400 flex items-center gap-1 backdrop-blur-sm">
@@ -1434,29 +1451,10 @@ export default function BoutiqueVitrinePage() {
       </AnimatePresence>
 
       {/* =========================================================================
-          TOAST DE NOTIFICATION D'AJOUT PANIER
-      ========================================================================= */}
-      <AnimatePresence>
-        {toastMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 30 }}
-            className="fixed bottom-6 right-6 z-50 p-4 rounded-2xl bg-slate-900 border border-amber-500/40 text-white text-xs font-bold shadow-2xl flex items-center gap-3 backdrop-blur-md"
-          >
-            <div className="p-1 rounded-full bg-amber-500/20 text-amber-400">
-              <Check className="w-4 h-4" />
-            </div>
-            <span>{toastMessage}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* =========================================================================
           PIED DE PAGE (FOOTER E-COMMERCE)
       ========================================================================= */}
-      <footer className="mt-auto bg-[#070a12] border-t border-slate-800 py-10 text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+      <footer className="mt-auto w-full bg-[#070a12] border-t border-slate-800 py-8 text-xs text-slate-400">
+        <div className="w-full px-3 sm:px-5 lg:px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             {/* Colonne 1 : À Propos */}
             <div className="space-y-3">

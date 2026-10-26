@@ -27,6 +27,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Variante {
   id: number;
@@ -36,6 +37,7 @@ interface Variante {
   prix: number;
   coutAchat?: number;
   quantiteStock: number;
+  stocksParPoint?: Array<{ id: number; pointDeVenteId: number; quantite: number }>;
 }
 
 interface Produit {
@@ -52,6 +54,7 @@ interface Produit {
 
 export default function ProduitsPage() {
   const { canManageProducts, isAdmin, isGerant, isVendeur, user } = useAuth();
+  const { showSuccess, showError, showWarning } = useToast();
 
   const [produits, setProduits] = useState<Produit[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; nom: string }>>([]);
@@ -59,6 +62,7 @@ export default function ProduitsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [selectedPointDeVente, setSelectedPointDeVente] = useState<number | null>(null);
 
   // Modal Add Product
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -148,11 +152,11 @@ export default function ProduitsPage() {
           setFormImageUrl(json.url);
         }
       } else {
-        alert(json.error || 'Erreur lors du téléchargement de l\'image');
+        showError(json.error || 'Erreur lors du téléchargement de l\'image', 'Erreur image');
       }
     } catch (err) {
       console.error('Erreur upload image:', err);
-      alert('Erreur réseau lors du téléversement');
+      showError('Erreur réseau lors du téléversement', 'Erreur réseau');
     } finally {
       setUploadingImage(false);
     }
@@ -162,10 +166,13 @@ export default function ProduitsPage() {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageProducts) {
-      alert('Action non autorisée. Seuls l\'Administrateur et le Gérant peuvent ajouter des produits.');
+      showError('Action non autorisée. Seuls l\'Administrateur et le Gérant peuvent ajouter des produits.', 'Accès refusé');
       return;
     }
-    if (!formNom.trim()) return;
+    if (!formNom.trim()) {
+      showWarning('Veuillez renseigner le nom du produit.');
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -195,11 +202,13 @@ export default function ProduitsPage() {
         setFormDescription('');
         setFormImageUrl('');
         fetchProduits();
+        showSuccess('Le produit a été ajouté au catalogue.', 'Produit créé');
       } else {
-        alert(json.error || 'Erreur lors de la création');
+        showError(json.error || 'Erreur lors de la création', 'Erreur produit');
       }
     } catch (err) {
       console.error(err);
+      showError('Erreur réseau lors de la création', 'Erreur réseau');
     } finally {
       setSubmitting(false);
     }
@@ -208,7 +217,7 @@ export default function ProduitsPage() {
   // Ouvrir modal édition
   const handleOpenEdit = (product: Produit) => {
     if (!canManageProducts) {
-      alert('Action non autorisée. Seuls l\'Administrateur et le Gérant peuvent modifier des produits.');
+      showError('Action non autorisée. Seuls l\'Administrateur et le Gérant peuvent modifier des produits.', 'Accès refusé');
       return;
     }
     const mainVar = product.variantes[0];
@@ -230,7 +239,10 @@ export default function ProduitsPage() {
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManageProducts || !editingProduct) return;
-    if (!editNom.trim()) return;
+    if (!editNom.trim()) {
+      showWarning('Veuillez renseigner le nom du produit.');
+      return;
+    }
 
     try {
       setUpdating(true);
@@ -259,11 +271,13 @@ export default function ProduitsPage() {
           setSelectedProduct(json.produit);
         }
         fetchProduits();
+        showSuccess('Les informations du produit ont été enregistrées.', 'Produit modifié');
       } else {
-        alert(json.error || 'Erreur lors de la mise à jour');
+        showError(json.error || 'Erreur lors de la mise à jour', 'Erreur produit');
       }
     } catch (err) {
       console.error('Erreur mise à jour produit:', err);
+      showError('Erreur réseau lors de la mise à jour', 'Erreur réseau');
     } finally {
       setUpdating(false);
     }
@@ -272,7 +286,7 @@ export default function ProduitsPage() {
   // Ouvrir confirmation suppression
   const handleOpenDelete = (product: Produit) => {
     if (!canManageProducts) {
-      alert('Action non autorisée. Seuls l\'Administrateur et le Gérant peuvent supprimer des produits.');
+      showError('Action non autorisée. Seuls l\'Administrateur et le Gérant peuvent supprimer des produits.', 'Accès refusé');
       return;
     }
     setProductToDelete(product);
@@ -297,11 +311,13 @@ export default function ProduitsPage() {
           setSelectedProduct(null);
         }
         fetchProduits();
+        showSuccess('Le produit a été supprimé du catalogue.', 'Produit supprimé');
       } else {
-        alert(json.error || 'Erreur lors de la suppression');
+        showError(json.error || 'Erreur lors de la suppression', 'Erreur suppression');
       }
     } catch (err) {
       console.error('Erreur suppression produit:', err);
+      showError('Erreur réseau lors de la suppression', 'Erreur réseau');
     } finally {
       setDeleting(false);
     }
@@ -373,16 +389,38 @@ export default function ProduitsPage() {
       )}
 
       {/* Filter Bar */}
-      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Rechercher par nom, référence ou catégorie..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-          />
+      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+          {/* Recherche */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Rechercher par nom, référence ou catégorie..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          {/* Filtre par Boutique / Point de Vente */}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
+              <select
+                value={selectedPointDeVente ?? ''}
+                onChange={(e) => setSelectedPointDeVente(e.target.value ? Number(e.target.value) : null)}
+                className="pl-9 pr-8 py-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-xs font-bold text-amber-300 focus:outline-none focus:border-amber-400 cursor-pointer shadow-sm"
+              >
+                <option value="">🏢 Toutes les Boutiques (Stock Global)</option>
+                {pointsDeVente.map((pdv) => (
+                  <option key={pdv.id} value={pdv.id}>
+                    🏪 {pdv.nom} {pdv.ville ? `(${pdv.ville})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Category filters */}
@@ -421,7 +459,16 @@ export default function ProduitsPage() {
                 <th className="px-6 py-4">Catégorie</th>
                 <th className="px-6 py-4">Variante(s)</th>
                 <th className="px-6 py-4">Prix de Vente</th>
-                <th className="px-6 py-4">Stock Total</th>
+                <th className="px-6 py-4">
+                  {selectedPointDeVente ? (
+                    <span className="text-amber-400 flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5" />
+                      Stock {pointsDeVente.find((p) => p.id === selectedPointDeVente)?.nom || 'Boutique'}
+                    </span>
+                  ) : (
+                    'Stock Global'
+                  )}
+                </th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -442,6 +489,16 @@ export default function ProduitsPage() {
                 filtered.map((p) => {
                   const mainVar = p.variantes[0];
                   const totalStock = p.variantes.reduce((sum, v) => sum + v.quantiteStock, 0);
+
+                  // Calcul du stock pour la boutique sélectionnée (si filtre activé)
+                  const boutiqueStock = selectedPointDeVente
+                    ? p.variantes.reduce((sum, v) => {
+                        const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === selectedPointDeVente);
+                        return sum + (sp ? sp.quantite : 0);
+                      }, 0)
+                    : totalStock;
+
+                  const displayStock = selectedPointDeVente ? boutiqueStock : totalStock;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
@@ -475,29 +532,48 @@ export default function ProduitsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-xs text-slate-300">
-                        {p.variantes.map((v) => (
-                          <span
-                            key={v.id}
-                            className="inline-block mr-1 mb-1 px-2 py-0.5 rounded bg-slate-900 border border-slate-700"
-                          >
-                            {v.taille || 'Std'} / {v.couleur || 'Classique'} ({v.quantiteStock})
-                          </span>
-                        ))}
+                        {p.variantes.map((v) => {
+                          const varBoutiqueStock = selectedPointDeVente
+                            ? v.stocksParPoint?.find((s) => s.pointDeVenteId === selectedPointDeVente)?.quantite ?? 0
+                            : v.quantiteStock;
+
+                          return (
+                            <span
+                              key={v.id}
+                              className={`inline-block mr-1 mb-1 px-2 py-0.5 rounded border text-[11px] ${selectedPointDeVente
+                                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                                  : 'bg-slate-900 border-slate-700 text-slate-300'
+                                }`}
+                            >
+                              {v.taille || 'Std'} / {v.couleur || 'Classique'} :{' '}
+                              <strong className={varBoutiqueStock <= 5 ? 'text-rose-400' : 'text-emerald-400'}>
+                                {varBoutiqueStock}
+                              </strong>
+                            </span>
+                          );
+                        })}
                       </td>
                       <td className="px-6 py-4 font-black text-amber-400">
                         {formatCurrency(mainVar?.prix || 0)}
                       </td>
                       <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${totalStock > 5
-                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                              : totalStock > 0
-                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                            }`}
-                        >
-                          {totalStock} unité{totalStock > 1 ? 's' : ''}
-                        </span>
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${displayStock > 5
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : displayStock > 0
+                                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                              }`}
+                          >
+                            {displayStock} unité{displayStock > 1 ? 's' : ''}
+                          </span>
+                          {selectedPointDeVente && (
+                            <p className="text-[11px] text-slate-500">
+                              (Réseau global: {totalStock})
+                            </p>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -1043,21 +1119,48 @@ export default function ProduitsPage() {
             Variantes & Stocks Disponibles
           </h4>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {selectedProduct?.variantes.map((v) => (
               <div
                 key={v.id}
-                className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs"
+                className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs"
               >
-                <div>
-                  <p className="font-bold text-white">
-                    Taille: {v.taille || 'Standard'} • Couleur: {v.couleur || 'Classique'}
-                  </p>
-                  <p className="text-slate-400 text-[11px]">Réf variante: {v.reference || '-'}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-white">
+                      Taille: {v.taille || 'Standard'} • Couleur: {v.couleur || 'Classique'}
+                    </p>
+                    <p className="text-slate-400 text-[11px]">Réf variante: {v.reference || '-'}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black text-amber-400">{formatCurrency(v.prix)}</p>
+                    <p className="text-emerald-400 font-semibold">{v.quantiteStock} au total</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="font-black text-amber-400">{formatCurrency(v.prix)}</p>
-                  <p className="text-emerald-400 font-semibold">{v.quantiteStock} en stock</p>
+
+                {/* Ventilation par boutique */}
+                <div className="pt-2 border-t border-slate-800/80">
+                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
+                    <Store className="w-3 h-3 text-amber-400" />
+                    Répartition par Boutique :
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {pointsDeVente.map((pdv) => {
+                      const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === pdv.id);
+                      const qte = sp?.quantite ?? 0;
+                      return (
+                        <div
+                          key={pdv.id}
+                          className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-[11px]"
+                        >
+                          <span className="text-slate-400 truncate">{pdv.nom}</span>
+                          <span className={`font-bold ${qte <= 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                            {qte} unité{qte > 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             ))}

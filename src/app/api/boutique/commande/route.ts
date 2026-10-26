@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notifyAdminNewOrder, notifyAdminLowStock } from '@/lib/sms';
 
 export async function POST(request: NextRequest) {
   try {
@@ -123,11 +124,12 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 3. Mettre à jour les stocks si varianteId fourni
+      // 3. Mettre à jour les stocks si varianteId fourni et déclencher alerte SMS si stock <= 10
       for (const item of items) {
         if (item.varianteId) {
           const v = await tx.produitVariante.findUnique({
             where: { id: parseInt(String(item.varianteId)) },
+            include: { produit: true },
           });
 
           if (v) {
@@ -151,12 +153,37 @@ export async function POST(request: NextRequest) {
                 referenceDoc: referenceCommande,
               },
             });
+
+            // Alerte SMS automatique si le stock tombe à 10 ou moins
+            if (stockApres <= 10) {
+              notifyAdminLowStock({
+                produitNom: v.produit?.nom || 'Article',
+                varianteInfo: `${v.taille || ''} ${v.couleur || ''}`.trim(),
+                quantiteRestante: stockApres,
+                boutiqueNom: pointVenteNom,
+              }).catch((e) => console.error('Erreur SMS Low Stock:', e));
+            }
           }
         }
       }
 
       return nouvelleVente;
     });
+
+    // Envoyer le SMS de notification à l'administrateur
+    notifyAdminNewOrder({
+      reference: commande.reference,
+      clientNom: nomClient,
+      telephone: telephoneClient,
+      ville,
+      adresse,
+      total: totalCommande,
+      items: items.map((i: any) => ({
+        nom: i.nomProduit || i.nom,
+        quantite: parseInt(String(i.quantite || 1)),
+        prix: parseFloat(String(i.prix || 0)),
+      })),
+    }).catch((e) => console.error('Erreur SMS Admin Commande:', e));
 
     return NextResponse.json({
       success: true,

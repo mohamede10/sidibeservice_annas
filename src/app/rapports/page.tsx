@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 type Period = 'day' | 'week' | 'month' | 'year';
 
@@ -175,6 +176,7 @@ function DonutChart({ segments, size = 80 }: { segments: { value: number; color:
 
 export default function RapportsPage() {
   const { user, activePointVenteId } = useAuth();
+  const { showError } = useToast();
   const [period, setPeriod] = useState<Period>('month');
   const [data, setData] = useState<RapportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -187,12 +189,14 @@ export default function RapportsPage() {
       const res = await fetch(`/api/rapports?period=${period}${pvParam}`);
       const json = await res.json();
       if (json.success) setData(json);
+      else showError(json.error || 'Impossible de charger le rapport.', 'Erreur rapports');
     } catch (err) {
       console.error(err);
+      showError('Erreur réseau lors du chargement du rapport.', 'Erreur réseau');
     } finally {
       setLoading(false);
     }
-  }, [period, activePointVenteId]);
+  }, [period, activePointVenteId, showError]);
 
   useEffect(() => {
     fetchRapport();

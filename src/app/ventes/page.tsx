@@ -19,6 +19,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface Vente {
   id: number;
@@ -63,6 +64,7 @@ interface BoutiqueItem {
 
 export default function VentesPage() {
   const { user, isAdmin, isVendeur, activePointVenteId } = useAuth();
+  const { showError } = useToast();
 
   const [ventes, setVentes] = useState<Vente[]>([]);
   const [boutiquesList, setBoutiquesList] = useState<BoutiqueItem[]>([]);
@@ -109,9 +111,12 @@ export default function VentesPage() {
       const json = await res.json();
       if (json.success) {
         setVentes(json.ventes || []);
+      } else {
+        showError(json.error || 'Impossible de charger les ventes.', 'Erreur ventes');
       }
     } catch (err) {
       console.error(err);
+      showError('Erreur réseau lors du chargement des ventes.', 'Erreur réseau');
     } finally {
       setLoading(false);
     }

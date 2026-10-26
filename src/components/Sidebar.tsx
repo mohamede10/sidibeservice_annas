@@ -22,6 +22,7 @@ import {
   Wallet,
   TrendingDown,
   Store,
+  Banknote,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -32,19 +33,22 @@ interface SidebarProps {
 
 const navItems = [
   { href: '/', label: 'Tableau de Bord', icon: LayoutDashboard, badge: null, section: 'main' },
-  { href: '/boutique', label: 'Boutique ', icon: Store, badge: 'En ligne', section: 'main' },
+  { href: '/boutique', label: 'Boutique Vitrine', icon: Store, badge: 'En ligne', section: 'main' },
   { href: '/pos', label: 'Caisse & Vente POS', icon: ShoppingCart, badge: 'Direct', section: 'main' },
   { href: '/produits', label: 'Produits & Stocks', icon: Package, badge: null, section: 'main' },
+  { href: '/transferts', label: 'Transferts Stock', icon: ArrowLeftRight, badge: 'Inter-mag', section: 'main' },
   { href: '/ventes', label: 'Historique Factures', icon: Receipt, badge: null, section: 'main' },
   { href: '/dettes', label: 'Dettes & Crédits', icon: CreditCard, badge: 'Suivi', section: 'main' },
   { href: '/clients', label: 'Clients & Tiers', icon: Users, badge: null, section: 'main' },
   { href: '/achats', label: 'Achats Fournisseurs', icon: Truck, badge: null, section: 'main' },
   { href: '/depenses', label: 'Dépenses & Charges', icon: TrendingDown, badge: null, section: 'main' },
+  { href: '/virements', label: 'Caisse de Virement', icon: Banknote, badge: 'Espèces', section: 'main' },
 ];
 
 const adminNavItems = [
   { href: '/points-de-vente', label: 'Boutiques & Dépôts', icon: Building2, badge: null, section: 'admin' },
   { href: '/utilisateurs', label: 'Utilisateurs & Rôles', icon: UserCog, badge: null, section: 'admin' },
+  { href: '/salaires', label: 'Salaires Vendeurs', icon: Wallet, badge: 'RH', section: 'admin' },
   { href: '/rapports', label: 'Rapports & Finances', icon: BarChart3, badge: null, section: 'admin' },
 ];
 

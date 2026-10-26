@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         email: email || null,
         role: role || 'VENDEUR',
         pointVenteId: pointVenteId ? parseInt(pointVenteId) : null,
-        ville: ville || 'Bamako',
+        ville: ville || 'Kankan',
         profil: profil || null,
         motDePasse: '123456', // Mot de passe par défaut
         active: true,

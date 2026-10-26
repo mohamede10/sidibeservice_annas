@@ -20,11 +20,16 @@ import {
   ArrowRight,
   Receipt,
   X,
+  FileText,
+  MessageCircle,
+  Mail,
+  Store,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
-import { Store } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
+import { printInvoice, getWhatsAppInvoiceUrl, getEmailInvoiceUrl, InvoiceData } from '@/lib/invoicePdf';
 
 interface Variante {
   id: number;
@@ -63,10 +68,14 @@ interface Client {
   id: number;
   nom: string;
   telephone?: string;
+  adresse?: string;
+  email?: string;
+  ville?: string;
   soldeDette: number;
 }
 
 export default function PosPage() {
+  const { showSuccess, showError, showWarning } = useToast();
   const [produits, setProduits] = useState<Produit[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; nom: string }>>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -76,11 +85,20 @@ export default function PosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
 
-  // Cart
+  // Cart & Client state
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientSearch, setClientSearch] = useState('');
   const [showClientDropdown, setShowClientDropdown] = useState(false);
+
+  // Champs client obligatoires et facultatifs
+  const [clientNom, setClientNom] = useState('');
+  const [clientTelephone, setClientTelephone] = useState('');
+  const [clientAdresse, setClientAdresse] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
+
+  // Orange Money
+  const [orangeMoneyRef, setOrangeMoneyRef] = useState('');
 
   // Checkout Modal
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -96,9 +114,15 @@ export default function PosPage() {
     montantPaye: number;
     montantRestant: number;
     modePaiement: string;
-    nomClient?: string;
+    nomClient: string;
     telephoneClient?: string;
+    adresseClient?: string;
+    emailClient?: string;
     dateVente: string;
+    boutiqueNom: string;
+    boutiqueVille?: string;
+    boutiqueAdresse?: string;
+    boutiqueTelephone?: string;
     lignes: Array<{ nomProduit: string; varianteInfo?: string; quantite: number; prixUnitaire: number; totalLigne: number }>;
   } | null>(null);
 
@@ -123,6 +147,7 @@ export default function PosPage() {
         }
       } catch (err) {
         console.error('Erreur chargement POS:', err);
+        showError('Impossible de charger le catalogue de la caisse.', 'Erreur réseau');
       } finally {
         setLoading(false);
       }
@@ -159,9 +184,20 @@ export default function PosPage() {
     const selectedVar = variante || produit.variantes[0];
     if (!selectedVar) return;
 
+    if (selectedVar.quantiteStock <= 0) {
+      showWarning(`Rupture de stock pour « ${produit.nom} ».`);
+      return;
+    }
+
+    const existing = cart.find((item) => item.varianteId === selectedVar.id);
+    if (existing && existing.quantite >= selectedVar.quantiteStock) {
+      showWarning(`Stock insuffisant. Maximum ${selectedVar.quantiteStock} disponible(s).`);
+      return;
+    }
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.varianteId === selectedVar.id);
-      if (existing) {
+      const alreadyInCart = prev.find((item) => item.varianteId === selectedVar.id);
+      if (alreadyInCart) {
         return prev.map((item) =>
           item.varianteId === selectedVar.id
             ? { ...item, quantite: item.quantite + 1 }
@@ -187,14 +223,20 @@ export default function PosPage() {
 
   // Update item quantity
   const updateQuantity = (varianteId: number, delta: number) => {
+    const item = cart.find((c) => c.varianteId === varianteId);
+    if (!item) return;
+    if (delta > 0 && item.quantite >= item.stockDisponible) {
+      showWarning(`Stock insuffisant. Maximum ${item.stockDisponible} disponible(s).`);
+      return;
+    }
     setCart((prev) =>
       prev
-        .map((item) => {
-          if (item.varianteId === varianteId) {
-            const newQty = item.quantite + delta;
-            return newQty > 0 ? { ...item, quantite: newQty } : null;
+        .map((cartItem) => {
+          if (cartItem.varianteId === varianteId) {
+            const newQty = cartItem.quantite + delta;
+            return newQty > 0 ? { ...cartItem, quantite: newQty } : null;
           }
-          return item;
+          return cartItem;
         })
         .filter(Boolean) as CartItem[]
     );
@@ -210,20 +252,57 @@ export default function PosPage() {
     setCart([]);
     setSelectedClient(null);
     setClientSearch('');
+    setClientNom('');
+    setClientTelephone('');
+    setClientAdresse('');
+    setClientEmail('');
+    setOrangeMoneyRef('');
+  };
+
+  // Sélection d'un client dans la liste
+  const handleSelectClient = (c: Client) => {
+    setSelectedClient(c);
+    setClientNom(c.nom);
+    setClientTelephone(c.telephone || '');
+    setClientAdresse(c.adresse || '');
+    setClientEmail(c.email || '');
+    setClientSearch(c.nom);
+    setShowClientDropdown(false);
   };
 
   // Open Checkout
   const handleOpenCheckout = () => {
-    if (cart.length === 0) return;
+    if (cart.length === 0) {
+      showWarning('Le panier est vide. Ajoutez au moins un article.');
+      return;
+    }
+    if (!clientNom && clientSearch) {
+      setClientNom(clientSearch.trim());
+    }
     setMontantRecu(String(subtotal));
     setIsCheckoutModalOpen(true);
   };
 
-  const { user, activePointVenteId } = useAuth();
+  const { user, activePointVenteId, activePointVenteNom } = useAuth();
 
   // Submit Checkout
   const handleValidateSale = async () => {
     if (cart.length === 0) return;
+
+    const nomFinal = clientNom.trim() || selectedClient?.nom || clientSearch.trim();
+    const telFinal = clientTelephone.trim() || selectedClient?.telephone || '';
+    const adrFinal = clientAdresse.trim() || selectedClient?.adresse || '';
+    const emailFinal = clientEmail.trim() || selectedClient?.email || '';
+
+    if (!nomFinal) {
+      showWarning('Veuillez renseigner le nom du client.');
+      return;
+    }
+    if (!telFinal) {
+      showWarning('Veuillez renseigner le numéro de téléphone du client.');
+      return;
+    }
+
     try {
       setCheckoutLoading(true);
       const res = await fetch('/api/pos/checkout', {
@@ -232,12 +311,15 @@ export default function PosPage() {
         body: JSON.stringify({
           cartItems: cart,
           clientId: selectedClient?.id,
-          nomClient: selectedClient?.nom || (clientSearch.trim() ? clientSearch.trim() : 'Client de passage'),
-          telephoneClient: selectedClient?.telephone,
-          modePaiement,
+          nomClient: nomFinal,
+          telephoneClient: telFinal,
+          adresseClient: adrFinal,
+          emailClient: emailFinal,
+          modePaiement: modePaiement === 'ORANGE_MONEY' && orangeMoneyRef ? `ORANGE_MONEY (Réf: ${orangeMoneyRef})` : modePaiement,
           montantPaye: modePaiement === 'CREDIT' ? 0 : montantPayeNumerique,
           pointVenteId: user?.pointVenteId || activePointVenteId || 1,
           vendeurId: user?.id,
+          notes: orangeMoneyRef ? `Réf Orange Money: ${orangeMoneyRef}` : undefined,
         }),
       });
 
@@ -249,9 +331,14 @@ export default function PosPage() {
           montantPaye: modePaiement === 'CREDIT' ? 0 : montantPayeNumerique,
           montantRestant: modePaiement === 'CREDIT' ? subtotal : resteDu,
           modePaiement,
-          nomClient: selectedClient?.nom || clientSearch || 'Client de passage',
-          telephoneClient: selectedClient?.telephone,
+          nomClient: nomFinal,
+          telephoneClient: telFinal,
+          adresseClient: adrFinal,
+          emailClient: emailFinal,
           dateVente: new Date().toISOString(),
+          boutiqueNom: activePointVenteNom || user?.pointVenteNom || 'Sidibe Services Boutique',
+          boutiqueVille: user?.ville || 'Kankan',
+          boutiqueTelephone: '+224 622 48 81 61',
           lignes: cart.map((c) => ({
             nomProduit: c.nom,
             varianteInfo: `${c.taille || ''} ${c.couleur || ''}`.trim(),
@@ -264,15 +351,48 @@ export default function PosPage() {
         setIsCheckoutModalOpen(false);
         setIsReceiptModalOpen(true);
         clearCart();
+        showSuccess('La vente a été enregistrée.', 'Vente validée');
       } else {
-        alert(json.error || 'Erreur lors de la vente');
+        showError(json.error || 'Erreur lors de la vente', 'Erreur vente');
       }
     } catch (err) {
       console.error(err);
-      alert('Erreur réseau');
+      showError('Erreur réseau', 'Erreur réseau');
     } finally {
       setCheckoutLoading(false);
     }
+  };
+
+  const buildCompletedInvoice = (): InvoiceData | null => {
+    if (!completedSale) return null;
+    return {
+      numeroFacture: `FAC-${completedSale.reference.replace(/^VTE-/, '')}`,
+      referenceVente: completedSale.reference,
+      dateFacture: completedSale.dateVente,
+      boutique: {
+        nom: completedSale.boutiqueNom,
+        ville: completedSale.boutiqueVille,
+        adresse: completedSale.boutiqueAdresse,
+        telephone: completedSale.boutiqueTelephone,
+      },
+      client: {
+        nom: completedSale.nomClient,
+        telephone: completedSale.telephoneClient,
+        adresse: completedSale.adresseClient,
+        email: completedSale.emailClient,
+      },
+      lignes: completedSale.lignes.map((l) => ({
+        designation: l.nomProduit,
+        varianteInfo: l.varianteInfo,
+        quantite: l.quantite,
+        prixUnitaire: l.prixUnitaire,
+        totalLigne: l.totalLigne,
+      })),
+      total: completedSale.total,
+      montantPaye: completedSale.montantPaye,
+      montantRestant: completedSale.montantRestant,
+      modePaiement: completedSale.modePaiement,
+    };
   };
 
   return (
@@ -578,17 +698,86 @@ export default function PosPage() {
         title="Validation & Règlement de la Vente"
         subtitle={`Total de la commande : ${formatCurrency(subtotal)}`}
       >
-        <div className="space-y-6">
+        <div className="space-y-5">
+          {/* Section Informations Client (Obligatoires) */}
+          <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Informations du Client (Obligatoires)
+              </span>
+              {selectedClient && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  Client sélectionné : {selectedClient.nom}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                  Nom & Prénom du Client <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Mamadou Diallo"
+                  value={clientNom}
+                  onChange={(e) => setClientNom(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                  Numéro de Téléphone <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Ex: 622 XX XX XX"
+                  value={clientTelephone}
+                  onChange={(e) => setClientTelephone(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                  Adresse / Ville / Quartier <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Kankan Centre, Rue Commerciale"
+                  value={clientAdresse}
+                  onChange={(e) => setClientAdresse(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                  Email du Client <span className="text-slate-500 font-normal">(Facultatif)</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="Ex: client@gmail.com"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700 text-white text-xs focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Payment Method Selector */}
           <div>
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-3">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-2.5">
               Choisir le mode de paiement :
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {[
                 { id: 'ESPECES', label: 'Espèces', icon: Banknote },
+                { id: 'ORANGE_MONEY', label: 'Orange Money Guinée', icon: Smartphone },
                 { id: 'WAVE', label: 'Wave', icon: Smartphone },
-                { id: 'ORANGE_MONEY', label: 'Orange Money', icon: Smartphone },
                 { id: 'CARTE_BANCAIRE', label: 'Carte Bancaire', icon: CreditCard },
                 { id: 'CREDIT', label: 'À Crédit (Dette)', icon: Receipt },
               ].map((m) => {
@@ -607,13 +796,45 @@ export default function PosPage() {
                         : 'border-slate-800 bg-slate-900/80 text-slate-400 hover:text-slate-200'
                       }`}
                   >
-                    <Icon className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold">{m.label}</span>
+                    <Icon className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="text-xs font-bold leading-tight">{m.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
+
+          {/* Special Orange Money Banner with Merchant Code */}
+          {modePaiement === 'ORANGE_MONEY' && (
+            <div className="p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-orange-200 text-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold flex items-center gap-2 text-orange-300">
+                  <Smartphone className="w-4 h-4 text-orange-400" />
+                  Paiement Orange Money Guinée
+                </span>
+                <span className="px-2 py-0.5 rounded-lg bg-orange-500/20 text-orange-400 font-mono font-bold text-xs">
+                  Code Marchand : 622 48 81 61
+                </span>
+              </div>
+              <p className="text-[11px] text-orange-300/80">
+                Faites composer au client le <strong>*144*4*4#</strong> ou <strong>#144#</strong>, saisissez le montant de{' '}
+                <strong className="text-white">{formatCurrency(subtotal)}</strong> et le numéro marchand{' '}
+                <strong className="text-white font-mono">622 48 81 61</strong>.
+              </p>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-300 block mb-1">
+                  Référence de Transaction Orange Money (ID SMS / Réf) :
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: MP241024.1234.A12345"
+                  value={orangeMoneyRef}
+                  onChange={(e) => setOrangeMoneyRef(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-orange-500/40 text-white font-mono text-xs focus:outline-none focus:border-orange-400"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Amount inputs */}
           {modePaiement !== 'CREDIT' && (
@@ -652,7 +873,7 @@ export default function PosPage() {
               <p className="font-bold">⚠️ Vente à crédit ou acompte partiel :</p>
               <p className="mt-0.5">
                 Le montant restant dû ({formatCurrency(modePaiement === 'CREDIT' ? subtotal : resteDu)}) sera automatiquement ajouté au solde de dette du client{' '}
-                <span className="font-bold underline">{selectedClient?.nom || clientSearch || 'Client sélectionné'}</span>.
+                <span className="font-bold underline">{clientNom || selectedClient?.nom || clientSearch || 'Client sélectionné'}</span>.
               </p>
             </div>
           )}
@@ -677,7 +898,7 @@ export default function PosPage() {
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  <span>Encaisser & Imprimer Facture</span>
+                  <span>Encaisser & Facturer</span>
                 </>
               )}
             </motion.button>
@@ -685,7 +906,7 @@ export default function PosPage() {
         </div>
       </AnimatedModal>
 
-      {/* MODAL 2: RECEIPT / FACTURE IMPRIMABLE */}
+      {/* MODAL 2: RECEIPT / FACTURE IMPRIMABLE AVEC EXPORTS */}
       <AnimatedModal
         isOpen={isReceiptModalOpen}
         onClose={() => setIsReceiptModalOpen(false)}
@@ -693,13 +914,59 @@ export default function PosPage() {
         subtitle={`Réf: ${completedSale?.reference || ''}`}
       >
         <div className="space-y-6">
+          {/* Options de Partage Rapide (PDF, WhatsApp, Email) */}
+          {completedSale && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-2.5">
+              <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Actions Client & Facturation
+              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    const invoiceData = buildCompletedInvoice();
+                    if (invoiceData) printInvoice(invoiceData);
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:bg-amber-400 shadow-md"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Télécharger Facture PDF</span>
+                </button>
+
+                {completedSale.telephoneClient && (
+                  <a
+                    href={getWhatsAppInvoiceUrl(buildCompletedInvoice()!)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500 shadow-md"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
+
+                {completedSale.emailClient && (
+                  <a
+                    href={getEmailInvoiceUrl(buildCompletedInvoice()!)}
+                    className="px-3.5 py-2 rounded-xl bg-sky-600 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-sky-500 shadow-md"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Email</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Printable Ticket Area */}
           <div id="printable-area" className="p-6 rounded-2xl bg-white text-slate-900 font-sans shadow-lg space-y-4">
             {/* Ticket Header */}
             <div className="text-center pb-3 border-b border-dashed border-slate-300 space-y-1">
               <h2 className="text-xl font-black tracking-wider text-slate-900">SIDIBE SERVICE</h2>
-              <p className="text-xs text-slate-600">Décoration intérieur</p>
-              <p className="text-[11px] text-slate-500">Tél: +224 622 48 81 61 • Guinée, Kankan</p>
+              <p className="text-xs font-semibold text-amber-700">{completedSale?.boutiqueNom || 'Boutique Principale'}</p>
+              <p className="text-[11px] text-slate-500">
+                Tél: {completedSale?.boutiqueTelephone || '+224 622 48 81 61'} • Guinée, {completedSale?.boutiqueVille || 'Kankan'}
+              </p>
             </div>
 
             {/* Sale metadata */}
@@ -716,6 +983,18 @@ export default function PosPage() {
                 <span>Client :</span>
                 <span className="font-bold text-slate-900">{completedSale?.nomClient || 'Comptant'}</span>
               </div>
+              {completedSale?.telephoneClient && (
+                <div className="flex justify-between">
+                  <span>Téléphone :</span>
+                  <span>{completedSale.telephoneClient}</span>
+                </div>
+              )}
+              {completedSale?.adresseClient && (
+                <div className="flex justify-between">
+                  <span>Adresse :</span>
+                  <span>{completedSale.adresseClient}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>Règlement :</span>
                 <span className="font-semibold text-slate-900">{completedSale?.modePaiement}</span>
@@ -765,8 +1044,9 @@ export default function PosPage() {
             </div>
 
             {/* Ticket Footer */}
-            <div className="text-center pt-3 border-t border-dashed border-slate-300 text-[11px] text-slate-500">
-              Merci de votre visite et à très bientôt chez Sidibé Service !
+            <div className="text-center pt-3 border-t border-dashed border-slate-300 text-[11px] text-slate-500 space-y-0.5">
+              <p>Merci de votre visite et à très bientôt chez Sidibé Service !</p>
+              <p className="font-semibold text-slate-700">Code Orange Money Guinée : 622 48 81 61</p>
             </div>
           </div>
 
@@ -785,7 +1065,7 @@ export default function PosPage() {
               className="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
             >
               <Printer className="w-4 h-4" />
-              Imprimer le Ticket / Facture
+              Imprimer le Ticket de Caisse
             </motion.button>
           </div>
         </div>

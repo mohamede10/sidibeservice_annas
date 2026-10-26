@@ -144,6 +144,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const idParam = searchParams.get('id');
+    const mode = searchParams.get('mode'); // 'suspend' | 'permanent'
     let id = idParam ? parseInt(idParam) : null;
 
     if (!id) {
@@ -167,49 +168,130 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Boutique introuvable' }, { status: 404 });
     }
 
-    // Détacher les vendeurs affectés à cette boutique
-    await prisma.user.updateMany({
-      where: { pointVenteId: id },
-      data: { pointVenteId: null },
-    });
-
-    // Vérifier si la boutique a un historique de transactions comptables
-    const [ventesCount, facturesCount, achatsCount] = await Promise.all([
-      prisma.vente.count({ where: { pointVenteId: id } }),
-      prisma.facture.count({ where: { pointDeVenteId: id } }),
-      prisma.achat.count({ where: { pointDeVenteId: id } }),
-    ]);
-
-    if (ventesCount > 0 || facturesCount > 0 || achatsCount > 0) {
-      // Pour protéger l'intégrité comptable et légale, désactiver et archiver la boutique
+    // 1. Mode SUSPENSION (Mise en pause) : conserve toutes les données et désactive la boutique
+    if (mode === 'suspend') {
       await prisma.pointDeVente.update({
         where: { id },
         data: { active: false },
       });
-
       return NextResponse.json({
         success: true,
-        archived: true,
-        message: `La boutique « ${pdv.nom} » a été désactivée et archivée avec succès car elle contient des factures et ventes historiques à conserver légalement.`,
+        suspended: true,
+        message: `La boutique « ${pdv.nom} » a été suspendue. Toutes ses données sont conservées et vous pouvez la réactiver à tout moment.`,
       });
     }
 
-    // Si aucune transaction liée, supprimer les stocks par point puis supprimer définitivement la boutique
-    await prisma.stockParPoint.deleteMany({
-      where: { pointDeVenteId: id },
-    });
+    // 2. Mode SUPPRESSION DÉFINITIVE : supprime la boutique même si elle contient des données historiques
+    await prisma.$transaction(async (tx) => {
+      // Détacher les vendeurs et retirer le gérant
+      await tx.user.updateMany({
+        where: { pointVenteId: id },
+        data: { pointVenteId: null },
+      });
+      await tx.pointDeVente.update({
+        where: { id },
+        data: { gerantId: null },
+      });
 
-    await prisma.pointDeVente.delete({
-      where: { id },
+      // Supprimer les mouvements de stock
+      await tx.stockMouvement.deleteMany({
+        where: { pointDeVenteId: id },
+      });
+
+      // Supprimer les stocks par magasin
+      await tx.stockParPoint.deleteMany({
+        where: { pointDeVenteId: id },
+      });
+
+      // Supprimer les transferts inter-boutiques
+      const transferts = await tx.transfertStock.findMany({
+        where: { OR: [{ pointOrigineId: id }, { pointDestinationId: id }] },
+        select: { id: true },
+      });
+      const transfertIds = transferts.map((t) => t.id);
+      if (transfertIds.length > 0) {
+        await tx.transfertLigne.deleteMany({
+          where: { transfertId: { in: transfertIds } },
+        });
+        await tx.transfertStock.deleteMany({
+          where: { id: { in: transfertIds } },
+        });
+      }
+
+      // Supprimer les factures
+      const factures = await tx.facture.findMany({
+        where: { pointDeVenteId: id },
+        select: { id: true },
+      });
+      const factureIds = factures.map((f) => f.id);
+      if (factureIds.length > 0) {
+        await tx.factureLigne.deleteMany({
+          where: { factureId: { in: factureIds } },
+        });
+        await tx.facture.deleteMany({
+          where: { id: { in: factureIds } },
+        });
+      }
+
+      // Supprimer les ventes et leurs détails
+      const ventes = await tx.vente.findMany({
+        where: { pointVenteId: id },
+        select: { id: true },
+      });
+      const venteIds = ventes.map((v) => v.id);
+      if (venteIds.length > 0) {
+        await tx.paiementDette.deleteMany({
+          where: { venteId: { in: venteIds } },
+        });
+        await tx.venteLigne.deleteMany({
+          where: { venteId: { in: venteIds } },
+        });
+        await tx.vente.deleteMany({
+          where: { id: { in: venteIds } },
+        });
+      }
+
+      // Supprimer les achats fournisseurs
+      const achats = await tx.achat.findMany({
+        where: { pointDeVenteId: id },
+        select: { id: true },
+      });
+      const achatIds = achats.map((a) => a.id);
+      if (achatIds.length > 0) {
+        await tx.achatLigne.deleteMany({
+          where: { achatId: { in: achatIds } },
+        });
+        await tx.achat.deleteMany({
+          where: { id: { in: achatIds } },
+        });
+      }
+
+      // Supprimer les dépenses et charges
+      await tx.depense.deleteMany({
+        where: { pointDeVenteId: id },
+      });
+
+      // Supprimer les clôtures de caisse et virements
+      await tx.clotureCaisse.deleteMany({
+        where: { pointDeVenteId: id },
+      });
+
+      // Supprimer définitivement la boutique
+      await tx.pointDeVente.delete({
+        where: { id },
+      });
+    }, {
+      maxWait: 20000,
+      timeout: 45000,
     });
 
     return NextResponse.json({
       success: true,
-      archived: false,
-      message: `La boutique « ${pdv.nom} » a été définitivement supprimée.`,
+      deleted: true,
+      message: `La boutique « ${pdv.nom} » et toutes ses données associées ont été définitivement supprimées.`,
     });
   } catch (error) {
     console.error('Erreur API Points de Vente DELETE:', error);
-    return NextResponse.json({ success: false, error: 'Erreur lors de la suppression de la boutique' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Erreur lors de la suppression définitive de la boutique' }, { status: 500 });
   }
 }

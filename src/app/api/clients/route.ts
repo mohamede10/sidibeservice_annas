@@ -17,8 +17,30 @@ export async function GET(request: NextRequest) {
       ];
     }
 
+    const avecAchats = searchParams.get('avecAchats') === 'true';
+
+    if (avecAchats) {
+      whereClause.ventes = {
+        some: {},
+      };
+    }
+
     const clients = await prisma.client.findMany({
       where: whereClause,
+      include: {
+        ventes: {
+          include: {
+            pointVente: { select: { id: true, nom: true, ville: true, adresse: true, telephone: true, codeBoutique: true } },
+            factures: {
+              include: {
+                lignes: true,
+              },
+            },
+            lignes: true,
+          },
+          orderBy: { dateVente: 'desc' },
+        },
+      },
       orderBy: { nom: 'asc' },
       take: 200,
     });
@@ -51,7 +73,7 @@ export async function POST(request: NextRequest) {
         telephone: telephone || '',
         email: email || '',
         adresse: adresse || '',
-        ville: ville || 'Bamako',
+        ville: ville || 'Kankan',
         limiteCredit: parseFloat(String(limiteCredit)) || 0,
         soldeDette: 0,
       },

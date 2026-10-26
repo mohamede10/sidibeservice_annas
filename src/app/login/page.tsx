@@ -14,6 +14,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 type Particle = {
   width: number;
@@ -39,6 +40,7 @@ type SideParticle = {
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [showPassword, setShowPassword] = useState(false);
@@ -105,6 +107,10 @@ export default function LoginPage() {
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim() || !password.trim()) {
+      showError('Veuillez renseigner votre identifiant et votre mot de passe.', 'Champs requis');
+      return;
+    }
     setLoading(true);
     setErrorMsg('');
 
@@ -119,12 +125,17 @@ export default function LoginPage() {
 
       if (data.success && data.user) {
         login(data.user);
+        showSuccess('Connexion réussie. Bienvenue.', 'Authentifié');
         router.push('/');
       } else {
-        setErrorMsg(data.error || 'Erreur lors de la connexion');
+        const msg = data.error || 'Erreur lors de la connexion';
+        setErrorMsg(msg);
+        showError(msg, 'Connexion refusée');
       }
     } catch {
-      setErrorMsg('Erreur de connexion au internet');
+      const msg = 'Erreur de connexion au internet';
+      setErrorMsg(msg);
+      showError(msg, 'Erreur réseau');
     } finally {
       setLoading(false);
     }

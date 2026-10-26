@@ -20,6 +20,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 
 interface ClientDette {
   id: number;
@@ -54,6 +55,7 @@ interface BoutiqueItem {
 
 export default function DettesPage() {
   const { user, isAdmin, isVendeur, activePointVenteId } = useAuth();
+  const { showSuccess, showError, showWarning } = useToast();
 
   const [clients, setClients] = useState<ClientDette[]>([]);
   const [totalDettes, setTotalDettes] = useState(0);
@@ -136,7 +138,14 @@ export default function DettesPage() {
 
   const handleSettleDebt = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClient || !montantRemboursement) return;
+    if (!selectedClient || !montantRemboursement) {
+      showWarning('Veuillez saisir un montant de remboursement.');
+      return;
+    }
+    if (parseFloat(montantRemboursement) <= 0) {
+      showWarning('Le montant du remboursement doit être supérieur à zéro.');
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -165,11 +174,13 @@ export default function DettesPage() {
         setSelectedClient(null);
         setMontantRemboursement('');
         fetchDettes();
+        showSuccess('Le remboursement a été enregistré.', 'Encaissement validé');
       } else {
-        alert(json.error || 'Erreur lors du remboursement');
+        showError(json.error || 'Erreur lors du remboursement', 'Erreur remboursement');
       }
     } catch (err) {
       console.error(err);
+      showError('Erreur réseau lors du remboursement', 'Erreur réseau');
     } finally {
       setSubmitting(false);
     }
