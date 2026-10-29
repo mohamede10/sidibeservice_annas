@@ -29,7 +29,13 @@ import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { printInvoice, getWhatsAppInvoiceUrl, getEmailInvoiceUrl, InvoiceData } from '@/lib/invoicePdf';
+import {
+  printInvoice,
+  sendInvoiceViaWhatsApp,
+  downloadInvoicePdf,
+  getEmailInvoiceUrl,
+  InvoiceData,
+} from '@/lib/invoicePdf';
 
 interface Variante {
   id: number;
@@ -925,25 +931,29 @@ export default function PosPage() {
                 <button
                   onClick={() => {
                     const invoiceData = buildCompletedInvoice();
-                    if (invoiceData) printInvoice(invoiceData);
+                    if (invoiceData) downloadInvoicePdf(invoiceData);
                   }}
-                  className="px-3.5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:bg-amber-400 shadow-md"
+                  className="px-3.5 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-xs flex items-center gap-1.5 hover:bg-amber-400 shadow-md cursor-pointer transition-colors"
+                  title="Télécharger le fichier PDF de la facture"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>Télécharger Facture PDF</span>
+                  <span>Télécharger PDF</span>
                 </button>
 
-                {completedSale.telephoneClient && (
-                  <a
-                    href={getWhatsAppInvoiceUrl(buildCompletedInvoice()!)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500 shadow-md"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    <span>WhatsApp</span>
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const invoiceData = buildCompletedInvoice();
+                    if (invoiceData) {
+                      await sendInvoiceViaWhatsApp(invoiceData);
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-500 shadow-md cursor-pointer transition-colors"
+                  title="Envoyer la facture en format PDF sur WhatsApp"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>WhatsApp (PDF)</span>
+                </button>
 
                 {completedSale.emailClient && (
                   <a

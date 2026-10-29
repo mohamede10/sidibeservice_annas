@@ -15,11 +15,17 @@ import {
   FileText,
   Store,
   Lock,
+  MessageCircle,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import {
+  sendInvoiceViaWhatsApp,
+  downloadInvoicePdf,
+  InvoiceData,
+} from '@/lib/invoicePdf';
 
 interface Vente {
   id: number;
@@ -128,6 +134,61 @@ export default function VentesPage() {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const buildVenteInvoiceData = (vente: Vente): InvoiceData => {
+    const numFacture =
+      vente.factures && vente.factures.length > 0
+        ? vente.factures[0].numeroFacture
+        : `FAC-${vente.reference.replace(/^VTE-/, '')}`;
+
+    return {
+      numeroFacture: numFacture,
+      referenceVente: vente.reference,
+      dateFacture: vente.dateVente,
+      boutique: {
+        nom: vente.pointVente?.nom || vente.pointVenteNom || 'Boutique Sidibe Multi-Services',
+        ville: vente.pointVente?.ville || 'Kankan',
+        adresse: 'Centre Commercial',
+        telephone: '+224 622 48 81 61',
+      },
+      client: {
+        nom: vente.client?.nom || vente.nomClient || 'Client Comptant',
+        telephone: vente.client?.telephone || vente.telephoneClient,
+        adresse: vente.client?.adresse || 'Kankan',
+      },
+      lignes:
+        vente.lignes && vente.lignes.length > 0
+          ? vente.lignes.map((l) => ({
+              designation: l.nomProduit,
+              varianteInfo: l.varianteInfo,
+              quantite: l.quantite,
+              prixUnitaire: l.prixUnitaire,
+              totalLigne: l.totalLigne,
+            }))
+          : [
+              {
+                designation: 'Achat divers',
+                quantite: 1,
+                prixUnitaire: vente.total,
+                totalLigne: vente.total,
+              },
+            ],
+      total: vente.total,
+      montantPaye: vente.montantPaye,
+      montantRestant: vente.montantRestant,
+      modePaiement: vente.modePaiement,
+    };
+  };
+
+  const handleDownloadPdf = (vente: Vente) => {
+    const inv = buildVenteInvoiceData(vente);
+    downloadInvoicePdf(inv);
+  };
+
+  const handleWhatsAppPdf = async (vente: Vente) => {
+    const inv = buildVenteInvoiceData(vente);
+    await sendInvoiceViaWhatsApp(inv);
   };
 
   const totalMontantVentes = ventes.reduce((sum, v) => sum + v.total, 0);
@@ -399,17 +460,41 @@ export default function VentesPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+            {selectedVente && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadPdf(selectedVente)}
+                  className="px-4 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-bold flex items-center gap-2 hover:bg-amber-500/30 transition-colors cursor-pointer"
+                  title="Télécharger le fichier PDF officiel"
+                >
+                  <FileText className="w-4 h-4" />
+                  Télécharger PDF
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleWhatsAppPdf(selectedVente)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-2 transition-colors shadow-md cursor-pointer"
+                  title="Envoyer la facture en format PDF sur WhatsApp"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  WhatsApp (PDF)
+                </button>
+              </>
+            )}
+
             <button
               onClick={handlePrint}
-              className="btn-gold px-5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
+              className="btn-gold px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
             >
               <Printer className="w-4 h-4" />
-              Imprimer la Facture
+              Imprimer
             </button>
             <button
               onClick={() => setSelectedVente(null)}
-              className="px-5 py-2.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
             >
               Fermer
             </button>

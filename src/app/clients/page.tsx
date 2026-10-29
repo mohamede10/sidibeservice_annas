@@ -26,7 +26,7 @@ import {
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useToast } from '@/contexts/ToastContext';
 import AnimatedModal from '@/components/AnimatedModal';
-import { printInvoice, getWhatsAppInvoiceUrl, getEmailInvoiceUrl, InvoiceData } from '@/lib/invoicePdf';
+import { printInvoice, sendInvoiceViaWhatsApp, downloadInvoicePdf, getEmailInvoiceUrl, InvoiceData } from '@/lib/invoicePdf';
 
 interface VenteClient {
   id: number;
@@ -203,14 +203,13 @@ export default function ClientsPage() {
     printInvoice(invData);
   };
 
-  const handleWhatsApp = (client: Client, vente: VenteClient) => {
+  const handleWhatsApp = async (client: Client, vente: VenteClient) => {
     if (!client.telephone) {
       showWarning('Ce client n\'a pas de numéro de téléphone pour WhatsApp.');
       return;
     }
     const invData = buildInvoiceData(client, vente);
-    const url = getWhatsAppInvoiceUrl(invData);
-    window.open(url, '_blank');
+    await sendInvoiceViaWhatsApp(invData);
   };
 
   const handleEmail = (client: Client, vente: VenteClient) => {
@@ -537,14 +536,14 @@ export default function ClientsPage() {
                               <span>Facture PDF</span>
                             </button>
 
-                            {/* Bouton WhatsApp */}
+                            {/* Bouton WhatsApp en PDF */}
                             <button
                               onClick={() => handleWhatsApp(selectedClientForHistory, vente)}
                               className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm"
-                              title="Envoyer la facture directement sur WhatsApp"
+                              title="Envoyer la facture en format PDF sur WhatsApp"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
+                              <span>WhatsApp (PDF)</span>
                             </button>
 
                             {/* Bouton Email */}
