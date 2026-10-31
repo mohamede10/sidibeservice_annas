@@ -22,8 +22,10 @@ import {
   Store,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -88,6 +90,32 @@ export default function VirementsPage() {
   const [search, setSearch] = useState('');
   const [validatingId, setValidatingId] = useState<number | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [virementToDelete, setVirementToDelete] = useState<VirementRecord | null>(null);
+  const [deletingVirement, setDeletingVirement] = useState(false);
+
+  const handleConfirmDeleteVirement = async () => {
+    if (!virementToDelete) return;
+    try {
+      setDeletingVirement(true);
+      const res = await fetch(`/api/virements?id=${virementToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(data.message || 'Virement supprimé avec succès.', 'Virement supprimé');
+        setVirements((prev) => prev.filter((v) => v.id !== virementToDelete.id));
+        setVirementToDelete(null);
+        fetchVirements();
+      } else {
+        showError(data.error || 'Erreur lors de la suppression du virement.', 'Erreur');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Erreur réseau lors de la suppression du virement.', 'Erreur réseau');
+    } finally {
+      setDeletingVirement(false);
+    }
+  };
 
   // Modal
   const [showModal, setShowModal] = useState(false);
@@ -519,6 +547,16 @@ export default function VirementsPage() {
                   >
                     <Printer className="w-4 h-4" />
                   </button>
+
+                  {isAdmin && (
+                    <button
+                      onClick={() => setVirementToDelete(v)}
+                      className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 transition-colors"
+                      title="Supprimer définitivement ce virement"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </motion.div>
             );
@@ -729,6 +767,54 @@ export default function VirementsPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL CONFIRMATION SUPPRESSION VIREMENT */}
+      <AnimatedModal
+        isOpen={Boolean(virementToDelete)}
+        onClose={() => !deletingVirement && setVirementToDelete(null)}
+        title="Supprimer le Virement d'Espèces"
+        subtitle={`Réf: ${virementToDelete?.reference || ''}`}
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-sm">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-white">Attention : Annulation définitive</p>
+              <p className="text-xs text-rose-200/90 mt-1">
+                Êtes-vous sûr de vouloir supprimer définitivement le virement{' '}
+                <strong className="text-white font-mono">{virementToDelete?.reference}</strong> ?
+              </p>
+              <ul className="text-xs text-slate-300 list-disc list-inside mt-2 space-y-1">
+                <li>Boutique : <strong>{virementToDelete?.pointDeVente.nom}</strong></li>
+                <li>Montant : <strong className="text-amber-400">{formatCurrency(virementToDelete?.soldeReel || 0)}</strong></li>
+                <li>Statut : <strong className="uppercase">{virementToDelete?.statut}</strong></li>
+                <li>Émetteur : <strong>{virementToDelete?.utilisateur?.nom || 'Vendeur'}</strong></li>
+                <li className="text-slate-400">Ce versement sera retiré des totaux virés et réajustera la caisse.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <button
+              type="button"
+              disabled={deletingVirement}
+              onClick={() => setVirementToDelete(null)}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              disabled={deletingVirement}
+              onClick={handleConfirmDeleteVirement}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deletingVirement ? 'Suppression en cours...' : 'Oui, supprimer le virement'}
+            </button>
+          </div>
+        </div>
+      </AnimatedModal>
     </div>
   );
 }

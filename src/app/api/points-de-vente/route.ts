@@ -31,8 +31,15 @@ export async function GET() {
 
     const statsByPDV = Object.fromEntries(ventesStats.map((v) => [v.pointVenteId, v]));
 
-    // Calculer le montant et la quantité de stock par boutique
+    // Calculer le montant et la quantité de stock par boutique (produits actifs uniquement)
     const stocksParPoint = await prisma.stockParPoint.findMany({
+      where: {
+        variante: {
+          produit: {
+            actif: true,
+          },
+        },
+      },
       include: {
         variante: {
           select: {

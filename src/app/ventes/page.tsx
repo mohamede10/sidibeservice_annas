@@ -16,6 +16,8 @@ import {
   Store,
   Lock,
   MessageCircle,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
@@ -69,8 +71,8 @@ interface BoutiqueItem {
 }
 
 export default function VentesPage() {
-  const { user, isAdmin, isVendeur, activePointVenteId } = useAuth();
-  const { showError } = useToast();
+  const { user, isAdmin, isGerant, isVendeur, activePointVenteId } = useAuth();
+  const { showError, showSuccess } = useToast();
 
   const [ventes, setVentes] = useState<Vente[]>([]);
   const [boutiquesList, setBoutiquesList] = useState<BoutiqueItem[]>([]);
@@ -81,6 +83,36 @@ export default function VentesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statutFilter, setStatutFilter] = useState('');
   const [selectedVente, setSelectedVente] = useState<Vente | null>(null);
+  const [venteToDelete, setVenteToDelete] = useState<Vente | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const canDeleteInvoice = isAdmin || isGerant;
+
+  const handleConfirmDelete = async () => {
+    if (!venteToDelete) return;
+    try {
+      setDeleting(true);
+      const res = await fetch(`/api/ventes?id=${venteToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(data.message || 'Facture supprimée avec succès.', 'Facture supprimée');
+        setVentes((prev) => prev.filter((v) => v.id !== venteToDelete.id));
+        if (selectedVente?.id === venteToDelete.id) {
+          setSelectedVente(null);
+        }
+        setVenteToDelete(null);
+      } else {
+        showError(data.error || 'Erreur lors de la suppression de la facture.', 'Erreur');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Erreur réseau lors de la suppression de la facture.', 'Erreur réseau');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Charger la liste des boutiques si admin
   useEffect(() => {
@@ -356,13 +388,25 @@ export default function VentesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => setSelectedVente(v)}
-                        className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-amber-400 hover:border-amber-400 transition-all inline-flex items-center gap-1.5 text-xs font-bold"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Voir</span>
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setSelectedVente(v)}
+                          className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-amber-400 hover:border-amber-400 transition-all inline-flex items-center gap-1.5 text-xs font-bold"
+                          title="Visualiser et imprimer la facture"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Voir</span>
+                        </button>
+                        {canDeleteInvoice && (
+                          <button
+                            onClick={() => setVenteToDelete(v)}
+                            className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 transition-all inline-flex items-center gap-1.5 text-xs font-bold"
+                            title="Supprimer cette facture"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -492,11 +536,71 @@ export default function VentesPage() {
               <Printer className="w-4 h-4" />
               Imprimer
             </button>
+
+            {canDeleteInvoice && selectedVente && (
+              <button
+                type="button"
+                onClick={() => setVenteToDelete(selectedVente)}
+                className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                title="Supprimer définitivement cette facture"
+              >
+                <Trash2 className="w-4 h-4" />
+                Supprimer
+              </button>
+            )}
+
             <button
               onClick={() => setSelectedVente(null)}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
             >
               Fermer
+            </button>
+          </div>
+        </div>
+      </AnimatedModal>
+
+      {/* MODAL CONFIRMATION SUPPRESSION FACTURE */}
+      <AnimatedModal
+        isOpen={Boolean(venteToDelete)}
+        onClose={() => !deleting && setVenteToDelete(null)}
+        title="Supprimer la Facture"
+        subtitle={`Confirmation d'annulation définitive`}
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-sm">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-white">Attention : Action irréversible</p>
+              <p className="text-xs text-rose-200/90 mt-1">
+                Êtes-vous sûr de vouloir supprimer définitivement la facture{' '}
+                <strong className="text-white font-mono">{venteToDelete?.reference}</strong> ?
+              </p>
+              <ul className="text-xs text-slate-300 list-disc list-inside mt-2 space-y-1">
+                <li>Montant : <strong>{formatCurrency(venteToDelete?.total || 0)}</strong></li>
+                <li>Client : <strong>{venteToDelete?.nomClient || venteToDelete?.client?.nom || 'Client Comptant'}</strong></li>
+                <li>Les articles de cette vente seront automatiquement réintégrés dans le stock de la boutique.</li>
+                <li>Si ce client avait une créance sur cette vente, elle sera également déduite de son solde dette.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setVenteToDelete(null)}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={handleConfirmDelete}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? 'Suppression en cours...' : 'Oui, supprimer la facture'}
             </button>
           </div>
         </div>

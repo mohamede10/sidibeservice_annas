@@ -41,8 +41,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { showError, showSuccess } = useToast();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -471,7 +471,7 @@ export default function LoginPage() {
                   transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                 />
                 <Image
-                  src="/img/logo.png"
+                  src="/img/logo.jpeg"
                   alt="Logo Sidibe Services"
                   fill
                   sizes="(max-width: 640px) 96px, 112px"

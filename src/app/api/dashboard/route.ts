@@ -41,6 +41,11 @@ export async function GET(request: NextRequest) {
         prisma.stockParPoint.findMany({
           where: {
             pointDeVenteId: pointVenteId,
+            variante: {
+              produit: {
+                actif: true,
+              },
+            },
           },
           include: {
             variante: {
@@ -63,7 +68,13 @@ export async function GET(request: NextRequest) {
 
       // Si aucun StockParPoint n'existe encore pour cette boutique spécifique, fallback sur les variantes globales si boutique 1
       if (stockParPointList.length === 0 && pointVenteId === 1) {
-        const allVars = await prisma.produitVariante.findMany();
+        const allVars = await prisma.produitVariante.findMany({
+          where: {
+            produit: {
+              actif: true,
+            },
+          },
+        });
         for (const v of allVars) {
           montantTotalStockBoutique += v.quantiteStock * v.prix;
           totalArticlesStockBoutique += v.quantiteStock;
@@ -209,6 +220,9 @@ export async function GET(request: NextRequest) {
       prisma.produitVariante.findMany({
         where: {
           quantiteStock: { lte: 5 },
+          produit: {
+            actif: true,
+          },
         },
         take: 8,
         include: {
@@ -223,11 +237,24 @@ export async function GET(request: NextRequest) {
         take: 6,
       }),
       prisma.stockParPoint.findMany({
+        where: {
+          variante: {
+            produit: {
+              actif: true,
+            },
+          },
+        },
         include: {
           variante: true,
         },
       }),
-      prisma.produitVariante.findMany(),
+      prisma.produitVariante.findMany({
+        where: {
+          produit: {
+            actif: true,
+          },
+        },
+      }),
       prisma.pointDeVente.findMany({
         select: { id: true, nom: true, codeBoutique: true, ville: true, active: true },
         orderBy: { id: 'asc' },

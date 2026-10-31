@@ -16,6 +16,8 @@ import {
   ChevronUp,
   ArrowRight,
   Filter,
+  FileDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
@@ -89,6 +91,33 @@ export default function TransfertsPage() {
   const [filterPointVente, setFilterPointVente] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [transfertToDelete, setTransfertToDelete] = useState<Transfert | null>(null);
+  const [deletingTransfert, setDeletingTransfert] = useState(false);
+
+  const canDeleteTransfert = isAdmin || isGerant;
+
+  const handleConfirmDeleteTransfert = async () => {
+    if (!transfertToDelete) return;
+    try {
+      setDeletingTransfert(true);
+      const res = await fetch(`/api/transferts?id=${transfertToDelete.id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(data.message || 'Transfert supprimé avec succès.', 'Transfert supprimé');
+        setTransferts((prev) => prev.filter((t) => t.id !== transfertToDelete.id));
+        setTransfertToDelete(null);
+      } else {
+        showError(data.error || 'Erreur lors de la suppression du transfert.', 'Erreur');
+      }
+    } catch (err) {
+      console.error(err);
+      showError('Erreur réseau lors de la suppression du transfert.', 'Erreur réseau');
+    } finally {
+      setDeletingTransfert(false);
+    }
+  };
 
   // New transfer modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -236,6 +265,107 @@ export default function TransfertsPage() {
     }
   };
 
+  const printTransfertPDF = (t: Transfert) => {
+    const win = window.open('', '_blank', 'width=700,height=900');
+    if (!win) return;
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Reçu Transfert ${t.reference}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;background:#fff;}
+  .header{text-align:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:16px;}
+  .header h2{margin:0;font-size:18px;text-transform:uppercase;letter-spacing:1px;}
+  .header p{margin:2px 0;font-size:11px;color:#555;}
+  .title-box{background:#f3f4f6;border:1px solid #ccc;text-align:center;padding:8px;margin-bottom:16px;}
+  .title-box h3{margin:0;font-size:14px;text-transform:uppercase;font-weight:900;}
+  .title-box p{margin:2px 0;font-size:11px;font-family:monospace;font-weight:bold;}
+  .info-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;}
+  .info-row span:first-child{color:#555;}
+  .info-row span:last-child{font-weight:bold;}
+  .section{border-bottom:1px solid #ddd;padding-bottom:10px;margin-bottom:10px;}
+  table{width:100%;border-collapse:collapse;font-size:11px;margin-top:10px;}
+  th{background:#f3f4f6;border:1px solid #ccc;padding:6px 8px;text-align:left;text-transform:uppercase;font-size:10px;}
+  td{border:1px solid #ddd;padding:6px 8px;}
+  .total-row td{font-weight:bold;background:#f9fafb;}
+  .route-box{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:bold;margin:12px 0;justify-content:center;}
+  .arrow{font-size:18px;color:#d97706;}
+  .signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px;text-align:center;font-size:11px;}
+  .sig-line{border-top:1px solid #666;width:80%;margin:0 auto;margin-top:40px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:bold;text-transform:uppercase;}
+  .badge-green{background:#dcfce7;border:1px solid #86efac;color:#166534;}
+  .badge-yellow{background:#fef9c3;border:1px solid #fde047;color:#854d0e;}
+  .footer{text-align:center;margin-top:24px;font-size:10px;color:#888;border-top:1px solid #eee;padding-top:10px;}
+  @media print{body{padding:0;} button{display:none;}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h2>SIDIBE MULTI-SERVICES</h2>
+  <p>Commerce Général, Import-Export &amp; Services</p>
+  <p>Système Multi-Points de Vente</p>
+</div>
+<div class="title-box">
+  <h3>BON DE TRANSFERT DE STOCK</h3>
+  <p>Réf: ${t.reference}</p>
+</div>
+<div class="section">
+  <div class="route-box">
+    <span>${t.pointOrigine.nom} (${t.pointOrigine.codeBoutique})</span>
+    <span class="arrow">➜</span>
+    <span>${t.pointDestination.nom} (${t.pointDestination.codeBoutique})</span>
+  </div>
+  <div class="info-row"><span>Date du transfert :</span><span>${new Date(t.dateTransfert).toLocaleString('fr-FR')}</span></div>
+  <div class="info-row"><span>Initié par :</span><span>${t.initiePar?.nom || 'N/A'}</span></div>
+  <div class="info-row"><span>Statut :</span><span>${t.statut}</span></div>
+  ${t.notes ? `<div class="info-row"><span>Notes :</span><span>${t.notes}</span></div>` : ''}
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>#</th>
+      <th>Article</th>
+      <th>Variante</th>
+      <th style="text-align:center">Quantité</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${t.lignes.map((l, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${l.variante?.produit?.nom || l.nomArticle}</td>
+      <td>${l.variante?.taille || ''} ${l.variante?.couleur || ''}</td>
+      <td style="text-align:center;font-weight:bold">${l.quantite}</td>
+    </tr>`).join('')}
+    <tr class="total-row">
+      <td colspan="3" style="text-align:right">TOTAL ARTICLES TRANSFÉRÉS :</td>
+      <td style="text-align:center">${t.lignes.reduce((s, l) => s + l.quantite, 0)}</td>
+    </tr>
+  </tbody>
+</table>
+<div class="signatures">
+  <div>
+    <p style="font-weight:bold">Expéditeur (${t.pointOrigine.nom})</p>
+    <div class="sig-line"></div>
+    <p style="margin-top:4px">${t.initiePar?.nom || '___________'}</p>
+  </div>
+  <div>
+    <p style="font-weight:bold">Réceptionnaire (${t.pointDestination.nom})</p>
+    <div class="sig-line"></div>
+    <p style="margin-top:4px">___________</p>
+  </div>
+</div>
+<div class="footer">
+  Imprimé le ${new Date().toLocaleString('fr-FR')} — Sidibe Services v1.0 — Document d'archive officiel
+</div>
+<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1000);}</script>
+</body>
+</html>`;
+    win.document.write(html);
+    win.document.close();
+  };
+
   const filtered = transferts.filter(
     (t) =>
       t.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -373,6 +503,22 @@ export default function TransfertsPage() {
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {t.initiePar && (
                     <span className="text-xs text-slate-500 hidden sm:inline">par {t.initiePar.nom}</span>
+                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); printTransfertPDF(t); }}
+                    title="Télécharger le reçu PDF"
+                    className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                  >
+                    <FileDown className="w-4 h-4" />
+                  </button>
+                  {canDeleteTransfert && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTransfertToDelete(t); }}
+                      title="Supprimer ce transfert et restaurer le stock"
+                      className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/50 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                   {expandedId === t.id ? (
                     <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -625,6 +771,53 @@ export default function TransfertsPage() {
                 </>
               )}
             </motion.button>
+          </div>
+        </div>
+      </AnimatedModal>
+
+      {/* MODAL CONFIRMATION SUPPRESSION TRANSFERT */}
+      <AnimatedModal
+        isOpen={Boolean(transfertToDelete)}
+        onClose={() => !deletingTransfert && setTransfertToDelete(null)}
+        title="Supprimer le Transfert de Stock"
+        subtitle={`Réf: ${transfertToDelete?.reference || ''}`}
+      >
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-start gap-3 text-rose-300 text-sm">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-white">Attention : Annulation du transfert</p>
+              <p className="text-xs text-rose-200/90 mt-1">
+                Êtes-vous sûr de vouloir supprimer définitivement le transfert{' '}
+                <strong className="text-white font-mono">{transfertToDelete?.reference}</strong> ?
+              </p>
+              <ul className="text-xs text-slate-300 list-disc list-inside mt-2 space-y-1">
+                <li>Origine : <strong>{transfertToDelete?.pointOrigine.nom}</strong></li>
+                <li>Destination : <strong>{transfertToDelete?.pointDestination.nom}</strong></li>
+                <li>Nombre d&apos;articles : <strong>{transfertToDelete?.lignes.length} article(s)</strong></li>
+                <li className="text-emerald-400 font-medium">Les stocks transférés seront automatiquement réintégrés dans la boutique d&apos;origine ({transfertToDelete?.pointOrigine.nom}) et déduits de la boutique de destination.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+            <button
+              type="button"
+              disabled={deletingTransfert}
+              onClick={() => setTransfertToDelete(null)}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              disabled={deletingTransfert}
+              onClick={handleConfirmDeleteTransfert}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 flex items-center gap-2 transition-all disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deletingTransfert ? 'Suppression en cours...' : 'Oui, supprimer le transfert'}
+            </button>
           </div>
         </div>
       </AnimatedModal>

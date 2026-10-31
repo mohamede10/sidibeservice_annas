@@ -215,3 +215,106 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Erreur lors du transfert de stock' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const idParam = searchParams.get('id');
+    let id = idParam ? parseInt(idParam) : null;
+
+    if (!id) {
+      try {
+        const body = await req.json();
+        if (body.id) id = parseInt(body.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!id || isNaN(id)) {
+      return NextResponse.json({ success: false, error: 'ID du transfert requis' }, { status: 400 });
+    }
+
+    const transfert = await prisma.transfertStock.findUnique({
+      where: { id },
+      include: {
+        lignes: true,
+        pointOrigine: true,
+        pointDestination: true,
+      },
+    });
+
+    if (!transfert) {
+      return NextResponse.json({ success: false, error: 'Transfert introuvable' }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Inverser les mouvements de stock si le transfert n'était pas refusé/annulé
+      if (transfert.statut !== 'REFUSE' && transfert.statut !== 'ANNULE') {
+        for (const ligne of transfert.lignes) {
+          const vId = ligne.varianteId;
+          const qte = ligne.quantite;
+
+          // Re-créditer la boutique d'origine
+          await tx.stockParPoint.upsert({
+            where: {
+              varianteId_pointDeVenteId: {
+                varianteId: vId,
+                pointDeVenteId: transfert.pointOrigineId,
+              },
+            },
+            update: { quantite: { increment: qte } },
+            create: {
+              varianteId: vId,
+              pointDeVenteId: transfert.pointOrigineId,
+              quantite: qte,
+            },
+          });
+
+          // Décrémenter la boutique de destination
+          const stockDest = await tx.stockParPoint.findUnique({
+            where: {
+              varianteId_pointDeVenteId: {
+                varianteId: vId,
+                pointDeVenteId: transfert.pointDestinationId,
+              },
+            },
+          });
+
+          if (stockDest) {
+            await tx.stockParPoint.update({
+              where: { id: stockDest.id },
+              data: { quantite: Math.max(0, stockDest.quantite - qte) },
+            });
+          }
+        }
+      }
+
+      // 2. Supprimer les mouvements de stock liés à ce transfert
+      await tx.stockMouvement.deleteMany({
+        where: { referenceDoc: transfert.reference },
+      });
+
+      // 3. Supprimer les lignes de transfert
+      await tx.transfertLigne.deleteMany({
+        where: { transfertId: id },
+      });
+
+      // 4. Supprimer le transfert de stock
+      await tx.transfertStock.delete({
+        where: { id },
+      });
+    }, {
+      maxWait: 20000,
+      timeout: 45000,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Le transfert ${transfert.reference} a été définitivement supprimé et les stocks ont été restaurés.`,
+    });
+  } catch (error) {
+    console.error('Erreur API Transferts DELETE:', error);
+    return NextResponse.json({ success: false, error: 'Erreur lors de la suppression du transfert' }, { status: 500 });
+  }
+}

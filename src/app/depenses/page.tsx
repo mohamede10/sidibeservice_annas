@@ -16,6 +16,7 @@ import {
   Search,
   Filter,
   Receipt,
+  FileDown,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -222,6 +223,74 @@ export default function DepensesPage() {
     return matchSearch && matchCat;
   });
 
+  const printDepensePDF = (d: Depense) => {
+    const win = window.open('', '_blank', 'width=700,height=700');
+    if (!win) return;
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Reçu Dépense #${d.id}</title>
+<style>
+  body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#111;background:#fff;}
+  .header{text-align:center;border-bottom:2px solid #000;padding-bottom:12px;margin-bottom:16px;}
+  .header h2{margin:0;font-size:18px;text-transform:uppercase;letter-spacing:1px;}
+  .header p{margin:2px 0;font-size:11px;color:#555;}
+  .title-box{background:#f3f4f6;border:1px solid #ccc;text-align:center;padding:8px;margin-bottom:16px;}
+  .title-box h3{margin:0;font-size:14px;text-transform:uppercase;font-weight:900;}
+  .info-row{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px dashed #eee;}
+  .info-row span:first-child{color:#555;}
+  .info-row span:last-child{font-weight:bold;}
+  .amount-box{background:#fef2f2;border:2px solid #fca5a5;border-radius:8px;text-align:center;padding:16px;margin:16px 0;}
+  .amount-box p{margin:0;font-size:11px;color:#991b1b;text-transform:uppercase;font-weight:bold;}
+  .amount-box .amount{font-size:28px;font-weight:900;color:#dc2626;}
+  .signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:40px;text-align:center;font-size:11px;}
+  .sig-line{border-top:1px solid #666;width:80%;margin:0 auto;margin-top:40px;}
+  .footer{text-align:center;margin-top:24px;font-size:10px;color:#888;border-top:1px solid #eee;padding-top:10px;}
+  @media print{body{padding:0;}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h2>SIDIBE MULTI-SERVICES</h2>
+  <p>Commerce Général, Import-Export &amp; Services</p>
+</div>
+<div class="title-box">
+  <h3>REÇU DE DÉPENSE / BON DE SORTIE DE CAISSE</h3>
+  <p>N° ${d.id} — ${d.pointDeVente.nom} (${d.pointDeVente.codeBoutique})</p>
+</div>
+<div class="info-row"><span>Date :</span><span>${new Date(d.dateDepense).toLocaleString('fr-FR')}</span></div>
+<div class="info-row"><span>Catégorie :</span><span>${d.categorie}</span></div>
+<div class="info-row"><span>Motif / Description :</span><span>${d.motif}</span></div>
+<div class="info-row"><span>Mode de paiement :</span><span>${d.modePaiement.replace('_', ' ')}</span></div>
+${d.beneficiaire ? `<div class="info-row"><span>Bénéficiaire :</span><span>${d.beneficiaire}</span></div>` : ''}
+${d.utilisateur ? `<div class="info-row"><span>Enregistré par :</span><span>${d.utilisateur.nom}</span></div>` : ''}
+<div class="amount-box">
+  <p>Montant de la dépense</p>
+  <p class="amount">${d.montant.toLocaleString('fr-FR')} GNF</p>
+</div>
+<div class="signatures">
+  <div>
+    <p style="font-weight:bold">Responsable de Boutique</p>
+    <div class="sig-line"></div>
+    <p style="margin-top:4px">___________</p>
+  </div>
+  <div>
+    <p style="font-weight:bold">Bénéficiaire / Signature</p>
+    <div class="sig-line"></div>
+    <p style="margin-top:4px">${d.beneficiaire || '___________'}</p>
+  </div>
+</div>
+<div class="footer">
+  Imprimé le ${new Date().toLocaleString('fr-FR')} — Sidibe Services v1.0 — Document d'archive officiel
+</div>
+<script>window.onload=()=>{window.print();setTimeout(()=>window.close(),1000);}</script>
+</body>
+</html>`;
+    win.document.write(html);
+    win.document.close();
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -231,7 +300,7 @@ export default function DepensesPage() {
             <span className="p-2 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
               <TrendingDown className="w-6 h-6" />
             </span>
-            Dépenses & Charges
+            Dépenses &amp; Charges
           </h1>
           <p className="text-slate-400 text-sm mt-1">
             {depenses.length} dépense(s) — Total : <span className="text-rose-400 font-bold">{formatCurrency(totalMontant)}</span>
@@ -326,7 +395,14 @@ export default function DepensesPage() {
                       <ModeIcon className="w-3 h-3" />
                       {d.modePaiement.replace('_', ' ')}
                     </span>
-                    <span className="text-xs text-slate-500 ml-auto">{formatDate(d.dateDepense)}</span>
+                    <span className="text-xs text-slate-500">{formatDate(d.dateDepense)}</span>
+                    <button
+                      onClick={() => printDepensePDF(d)}
+                      title="Imprimer le reçu de dépense"
+                      className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-colors ml-auto"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               </motion.div>

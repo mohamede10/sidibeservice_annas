@@ -231,3 +231,47 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Erreur validation du virement' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const idParam = searchParams.get('id');
+    let id = idParam ? parseInt(idParam) : null;
+
+    if (!id) {
+      try {
+        const body = await req.json();
+        if (body.id) id = parseInt(body.id);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!id || isNaN(id)) {
+      return NextResponse.json({ success: false, error: 'ID du virement requis' }, { status: 400 });
+    }
+
+    const virement = await prisma.clotureCaisse.findUnique({
+      where: { id },
+      include: {
+        pointDeVente: { select: { id: true, nom: true, codeBoutique: true } },
+      },
+    });
+
+    if (!virement) {
+      return NextResponse.json({ success: false, error: 'Virement introuvable' }, { status: 404 });
+    }
+
+    await prisma.clotureCaisse.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Le virement ${virement.reference} (${virement.pointDeVente.nom}) a été définitivement supprimé.`,
+    });
+  } catch (error) {
+    console.error('Erreur API Virements DELETE:', error);
+    return NextResponse.json({ success: false, error: 'Erreur lors de la suppression du virement' }, { status: 500 });
+  }
+}

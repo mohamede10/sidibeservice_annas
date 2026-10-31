@@ -420,7 +420,7 @@ export default function BoutiqueVitrinePage() {
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-600 p-0.5 shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
               <div className="w-full h-full bg-[#0b101b] rounded-[14px] flex items-center justify-center">
                 <img
-                src="/img/logo.png"
+                src="/img/logo.jpeg"
                 alt="Logo SIDIBE SERVICE"
                 className="w-full h-full object-cover"
               />
