@@ -45,6 +45,7 @@ interface Variante {
   coutAchat?: number;
   quantiteStock: number;
   reference?: string;
+  stocksParPoint?: Array<{ id: number; pointDeVenteId: number; quantite: number }>;
 }
 
 interface Produit {
@@ -56,6 +57,7 @@ interface Produit {
   categorieNom?: string;
   imageUrl?: string;
   variantes: Variante[];
+  statsParBoutique?: Record<number, { stock: number; vendu: number; ajoute: number }>;
 }
 
 interface CartItem {
@@ -82,6 +84,12 @@ interface Client {
 
 export default function PosPage() {
   const { showSuccess, showError, showWarning } = useToast();
+  const { user, activePointVenteId, activePointVenteNom, isVendeur } = useAuth();
+
+  const targetPointVenteId = isVendeur
+    ? (user?.pointVenteId ?? activePointVenteId)
+    : (activePointVenteId ?? user?.pointVenteId);
+
   const [produits, setProduits] = useState<Produit[]>([]);
   const [categories, setCategories] = useState<Array<{ id: number; nom: string }>>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -161,7 +169,7 @@ export default function PosPage() {
     loadData();
   }, []);
 
-  // Filtered Products
+  // Filtered Products (stricte séparation par boutique pour la vente)
   const filteredProducts = produits.filter((p) => {
     const matchSearch =
       p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -169,6 +177,19 @@ export default function PosPage() {
       (p.categorieNom && p.categorieNom.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchCategory = selectedCategory ? p.categorieId === selectedCategory : true;
+
+    // Si une boutique spécifique est connectée, afficher UNIQUEMENT les produits disponibles dans cette boutique
+    if (targetPointVenteId) {
+      const bStats = p.statsParBoutique?.[targetPointVenteId];
+      const stockBoutique = bStats
+        ? bStats.stock
+        : p.variantes.reduce((sum, v) => {
+            const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === targetPointVenteId);
+            return sum + (sp?.quantite ?? 0);
+          }, 0);
+      if (stockBoutique <= 0) return false;
+    }
+
     return matchSearch && matchCategory;
   });
 
@@ -190,14 +211,20 @@ export default function PosPage() {
     const selectedVar = variante || produit.variantes[0];
     if (!selectedVar) return;
 
-    if (selectedVar.quantiteStock <= 0) {
+    // Détermination du stock réel disponible pour cette boutique
+    const sp = targetPointVenteId ? selectedVar.stocksParPoint?.find((s) => s.pointDeVenteId === targetPointVenteId) : null;
+    const stockReel = targetPointVenteId
+      ? (sp ? sp.quantite : (produit.statsParBoutique?.[targetPointVenteId]?.stock ?? 0))
+      : selectedVar.quantiteStock;
+
+    if (stockReel <= 0) {
       showWarning(`Rupture de stock pour « ${produit.nom} ».`);
       return;
     }
 
     const existing = cart.find((item) => item.varianteId === selectedVar.id);
-    if (existing && existing.quantite >= selectedVar.quantiteStock) {
-      showWarning(`Stock insuffisant. Maximum ${selectedVar.quantiteStock} disponible(s).`);
+    if (existing && existing.quantite >= stockReel) {
+      showWarning(`Stock insuffisant. Maximum ${stockReel} disponible(s) dans cette boutique.`);
       return;
     }
 
@@ -221,7 +248,7 @@ export default function PosPage() {
           prix: selectedVar.prix,
           coutAchat: selectedVar.coutAchat,
           quantite: 1,
-          stockDisponible: selectedVar.quantiteStock,
+          stockDisponible: stockReel,
         },
       ];
     });
@@ -288,8 +315,6 @@ export default function PosPage() {
     setMontantRecu(String(subtotal));
     setIsCheckoutModalOpen(true);
   };
-
-  const { user, activePointVenteId, activePointVenteNom } = useAuth();
 
   // Submit Checkout
   const handleValidateSale = async () => {
@@ -482,7 +507,10 @@ export default function PosPage() {
             ) : (
               filteredProducts.map((p) => {
                 const mainVar = p.variantes[0];
-                const stock = mainVar ? mainVar.quantiteStock : 0;
+                const sp = targetPointVenteId ? mainVar?.stocksParPoint?.find((s) => s.pointDeVenteId === targetPointVenteId) : null;
+                const stock = targetPointVenteId
+                  ? (sp ? sp.quantite : (p.statsParBoutique?.[targetPointVenteId]?.stock ?? 0))
+                  : (mainVar ? mainVar.quantiteStock : 0);
                 const prix = mainVar ? mainVar.prix : 0;
 
                 return (
@@ -493,6 +521,19 @@ export default function PosPage() {
                     onClick={() => addToCart(p)}
                     className="glass-card p-4 rounded-2xl cursor-pointer flex flex-col justify-between group relative overflow-hidden"
                   >
+                    {/* Image du produit */}
+                    {p.imageUrl ? (
+                      <img
+                        src={p.imageUrl}
+                        alt={p.nom}
+                        className="w-full h-28 object-cover rounded-xl mb-3 border border-slate-700/50"
+                      />
+                    ) : (
+                      <div className="w-full h-28 rounded-xl mb-3 bg-slate-800/60 border border-slate-700/50 flex items-center justify-center">
+                        <Package className="w-10 h-10 text-slate-600 opacity-50" />
+                      </div>
+                    )}
+
                     <div>
                       <div className="flex items-start justify-between gap-2">
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-amber-400 font-semibold uppercase tracking-wider">

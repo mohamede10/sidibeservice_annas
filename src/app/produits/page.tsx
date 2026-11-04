@@ -69,6 +69,7 @@ export default function ProduitsPage() {
   const [pointsDeVente, setPointsDeVente] = useState<Array<{ id: number; nom: string; codeBoutique?: string; ville?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [priceFilter, setPriceFilter] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedPointDeVente, setSelectedPointDeVente] = useState<number | null>(null);
 
@@ -137,6 +138,13 @@ export default function ProduitsPage() {
   useEffect(() => {
     fetchProduits();
   }, []);
+
+  // Auto-filtre vendeur sur sa propre boutique uniquement
+  useEffect(() => {
+    if (isVendeur && user?.pointVenteId) {
+      setSelectedPointDeVente(user.pointVenteId);
+    }
+  }, [isVendeur, user?.pointVenteId]);
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>, isEdit = false) => {
     const file = e.target.files?.[0];
@@ -331,14 +339,41 @@ export default function ProduitsPage() {
     }
   };
 
+  // Détermination de la boutique active (priorité absolue à la boutique du vendeur)
+  const effectivePointDeVenteId = isVendeur
+    ? (user?.pointVenteId ?? selectedPointDeVente)
+    : selectedPointDeVente;
+
+  const effectiveBoutique = pointsDeVente.find((p) => p.id === effectivePointDeVenteId);
+
   const filtered = produits.filter((p) => {
     const matchSearch =
+      !searchTerm ||
       p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.ref && p.ref.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.categorieNom && p.categorieNom.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchCategory = selectedCategory ? p.categorieId === selectedCategory : true;
-    return matchSearch && matchCategory;
+
+    // Filtre par prix max (sur la variante principale)
+    const matchPrice = !priceFilter ||
+      (p.variantes[0]?.prix ?? 0) <= parseFloat(priceFilter);
+
+    // Filtre strict par boutique :
+    // Chaque boutique doit voir UNIQUEMENT ses propres produits (ayant du stock ou des mouvements dans cette boutique)
+    let matchBoutique = true;
+    if (effectivePointDeVenteId) {
+      const bStats = p.statsParBoutique?.[effectivePointDeVenteId];
+      if (bStats) {
+        matchBoutique = bStats.stock > 0 || bStats.ajoute > 0;
+      } else {
+        matchBoutique = p.variantes.some((v) =>
+          v.stocksParPoint?.some((s) => s.pointDeVenteId === effectivePointDeVenteId && s.quantite > 0)
+        );
+      }
+    }
+
+    return matchSearch && matchCategory && matchPrice && matchBoutique;
   });
 
   return (
@@ -353,7 +388,9 @@ export default function ProduitsPage() {
             Catalogue Produits & Stocks
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Gestion des {produits.length} articles, variantes de tailles/couleurs et niveaux de stock.
+            {effectiveBoutique
+              ? `Catalogue exclusif : ${effectiveBoutique.nom} (${effectiveBoutique.ville || 'Guinée'}) • ${filtered.length} article${filtered.length > 1 ? 's' : ''} en rayon`
+              : `Gestion globale des ${produits.length} articles, variantes de tailles/couleurs et niveaux de stock.`}
           </p>
         </div>
 
@@ -397,9 +434,9 @@ export default function ProduitsPage() {
       )}
 
       {/* Filter Bar */}
-      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-          {/* Recherche */}
+      <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Recherche par nom / référence */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -411,8 +448,20 @@ export default function ProduitsPage() {
             />
           </div>
 
-          {/* Filtre par Boutique / Point de Vente */}
-          <div className="flex items-center gap-2">
+          {/* Filtre par Prix Max */}
+          <div className="relative">
+            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
+            <input
+              type="number"
+              placeholder="Prix max (GNF)..."
+              value={priceFilter}
+              onChange={(e) => setPriceFilter(e.target.value)}
+              className="pl-9 pr-4 py-2.5 w-44 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
+          {/* Filtre par Boutique — visible UNIQUEMENT pour Admin et Gérant */}
+          {(isAdmin || isGerant) && (
             <div className="relative">
               <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
               <select
@@ -428,7 +477,15 @@ export default function ProduitsPage() {
                 ))}
               </select>
             </div>
-          </div>
+          )}
+
+          {/* Badge boutique pour le vendeur (lecture seule) */}
+          {isVendeur && selectedPointDeVente && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 font-semibold">
+              <Store className="w-3.5 h-3.5 text-amber-400" />
+              <span>{pointsDeVente.find(p => p.id === selectedPointDeVente)?.nom || 'Ma Boutique'}</span>
+            </div>
+          )}
         </div>
 
         {/* Category filters */}
@@ -440,7 +497,7 @@ export default function ProduitsPage() {
                 : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
               }`}
           >
-            Toutes ({produits.length})
+            Toutes ({filtered.length})
           </button>
           {categories.map((cat) => (
             <button
@@ -469,7 +526,13 @@ export default function ProduitsPage() {
                 <th className="px-4 py-4 text-center">
                   <span className="text-sky-400 inline-flex items-center gap-1.5 font-bold">
                     <Truck className="w-3.5 h-3.5" />
-                    Stocks Arrivés
+                    Entrées Totales
+                  </span>
+                </th>
+                <th className="px-4 py-4 text-center">
+                  <span className="text-purple-400 inline-flex items-center gap-1.5 font-bold">
+                    <ArrowDownToLine className="w-3.5 h-3.5" />
+                    Qté Ajoutée
                   </span>
                 </th>
                 <th className="px-4 py-4 text-center">
@@ -479,15 +542,15 @@ export default function ProduitsPage() {
                   </span>
                 </th>
                 <th className="px-4 py-4 text-center">
-                  {selectedPointDeVente ? (
+                  {effectiveBoutique ? (
                     <span className="text-emerald-400 inline-flex items-center gap-1.5 font-bold">
                       <Store className="w-3.5 h-3.5" />
-                      Stock Restant ({pointsDeVente.find((p) => p.id === selectedPointDeVente)?.codeBoutique || 'Boutique'})
+                      Stock Boutique ({effectiveBoutique.codeBoutique || effectiveBoutique.nom})
                     </span>
                   ) : (
                     <span className="text-emerald-400 inline-flex items-center gap-1.5 font-bold">
                       <Package className="w-3.5 h-3.5" />
-                      Stock Restant
+                      Stock Boutique
                     </span>
                   )}
                 </th>
@@ -497,13 +560,13 @@ export default function ProduitsPage() {
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                     Chargement du catalogue...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-500">
                     Aucun article trouvé.
                   </td>
                 </tr>
@@ -513,18 +576,20 @@ export default function ProduitsPage() {
                   const totalStock = p.variantes.reduce((sum, v) => sum + v.quantiteStock, 0);
 
                   // Calcul selon la boutique filtrée ou global
-                  const boutiqueStats = selectedPointDeVente ? p.statsParBoutique?.[selectedPointDeVente] : null;
+                  const boutiqueStats = effectivePointDeVenteId ? p.statsParBoutique?.[effectivePointDeVenteId] : null;
 
                   const qteVendue = boutiqueStats ? boutiqueStats.vendu : (p.totalVendu ?? 0);
                   const displayStock = boutiqueStats
                     ? boutiqueStats.stock
-                    : (selectedPointDeVente
+                    : (effectivePointDeVenteId
                         ? p.variantes.reduce((sum, v) => {
-                            const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === selectedPointDeVente);
+                            const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === effectivePointDeVenteId);
                             return sum + (sp ? sp.quantite : 0);
                           }, 0)
                         : totalStock);
                   const qteAjoutee = boutiqueStats ? boutiqueStats.ajoute : (p.totalAjoute ?? (displayStock + qteVendue));
+                  // Qté ajoutée affiche le stock actuel + vendu (= total entré via appros)
+                  const entreesTotales = qteAjoutee;
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
@@ -575,11 +640,19 @@ export default function ProduitsPage() {
                       <td className="px-4 py-4 text-center">
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
                           <Truck className="w-3.5 h-3.5" />
-                          {qteAjoutee} arrivé{qteAjoutee > 1 ? 's' : ''}
+                          {entreesTotales} arrivé{entreesTotales > 1 ? 's' : ''}
                         </span>
                       </td>
 
-                      {/* 5. Quantité Vendue (Sorties) */}
+                      {/* 5. Qté Ajoutée (stock actuel disponible en boutique) */}
+                      <td className="px-4 py-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                          <ArrowDownToLine className="w-3.5 h-3.5" />
+                          +{displayStock} en stock
+                        </span>
+                      </td>
+
+                      {/* 6. Quantité Vendue (Sorties) */}
                       <td className="px-4 py-4 text-center">
                         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
                           <Receipt className="w-3.5 h-3.5" />
@@ -587,7 +660,7 @@ export default function ProduitsPage() {
                         </span>
                       </td>
 
-                      {/* 6. Stock Restant / Disponible */}
+                      {/* 7. Stock Boutique (restant disponible) */}
                       <td className="px-4 py-4 text-center">
                         <div className="space-y-0.5">
                           <span
@@ -602,7 +675,7 @@ export default function ProduitsPage() {
                             <Package className="w-3.5 h-3.5" />
                             {displayStock} restant{displayStock > 1 ? 's' : ''}
                           </span>
-                          {selectedPointDeVente && (
+                          {effectivePointDeVenteId && (isAdmin || isGerant) && (
                             <p className="text-[10px] text-slate-500">
                               (Réseau total: {totalStock})
                             </p>
@@ -610,7 +683,7 @@ export default function ProduitsPage() {
                         </div>
                       </td>
 
-                      {/* 7. Actions */}
+                      {/* 8. Actions */}
                       <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Bouton Voir Détails (Accessible à tous) */}
@@ -1135,7 +1208,9 @@ export default function ProduitsPage() {
         isOpen={Boolean(selectedProduct)}
         onClose={() => setSelectedProduct(null)}
         title={selectedProduct?.nom || 'Détails Article'}
-        subtitle={`Réf: ${selectedProduct?.ref || ''} • Catégorie: ${selectedProduct?.categorieNom || 'Mode'}`}
+        subtitle={`Réf: ${selectedProduct?.ref || ''} • Catégorie: ${selectedProduct?.categorieNom || 'Mode'}${
+          effectiveBoutique ? ` • 🏪 ${effectiveBoutique.nom}` : ''
+        }`}
       >
         <div className="space-y-4">
           {selectedProduct?.imageUrl && (
@@ -1151,77 +1226,107 @@ export default function ProduitsPage() {
             {selectedProduct?.description || 'Aucune description spécifique renseignée.'}
           </p>
 
-          {/* Synthèse globale entrées/sorties/stock */}
-          <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center">
-            <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
-              <p className="text-[10px] text-sky-300 font-bold uppercase tracking-wider">Stocks Arrivés</p>
-              <p className="text-base font-black text-sky-400 mt-0.5">
-                {selectedProduct?.totalAjoute ?? ((selectedProduct?.totalStock ?? 0) + (selectedProduct?.totalVendu ?? 0))}
-              </p>
+          {/* Badge boutique si filtre actif ou vendeur */}
+          {effectiveBoutique && (
+            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300 font-bold">
+              <Store className="w-4 h-4 text-amber-400" />
+              <span>Chiffres &amp; Stocks exclusifs : {effectiveBoutique.nom} {effectiveBoutique.ville ? `(${effectiveBoutique.ville})` : ''}</span>
             </div>
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
-              <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Total Vendu</p>
-              <p className="text-base font-black text-amber-400 mt-0.5">
-                {selectedProduct?.totalVendu ?? 0}
-              </p>
-            </div>
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-              <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">Stock Restant</p>
-              <p className="text-base font-black text-emerald-400 mt-0.5">
-                {selectedProduct?.totalStock ?? selectedProduct?.variantes.reduce((s, v) => s + v.quantiteStock, 0)}
-              </p>
-            </div>
-          </div>
+          )}
+
+          {/* Synthèse entrées/sorties/stock (calculée pour la boutique active si vendeur ou filtre boutique) */}
+          {(() => {
+            const bStats = effectivePointDeVenteId && selectedProduct ? selectedProduct.statsParBoutique?.[effectivePointDeVenteId] : null;
+            const stockArrive = bStats ? bStats.ajoute : (selectedProduct?.totalAjoute ?? ((selectedProduct?.totalStock ?? 0) + (selectedProduct?.totalVendu ?? 0)));
+            const stockVendu = bStats ? bStats.vendu : (selectedProduct?.totalVendu ?? 0);
+            const stockRestant = bStats ? bStats.stock : (selectedProduct?.totalStock ?? selectedProduct?.variantes.reduce((s, v) => s + v.quantiteStock, 0));
+
+            return (
+              <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center">
+                <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+                  <p className="text-[10px] text-sky-300 font-bold uppercase tracking-wider">Stocks Arrivés</p>
+                  <p className="text-base font-black text-sky-400 mt-0.5">
+                    {stockArrive}
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Total Vendu</p>
+                  <p className="text-base font-black text-amber-400 mt-0.5">
+                    {stockVendu}
+                  </p>
+                </div>
+                <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">Stock Restant</p>
+                  <p className="text-base font-black text-emerald-400 mt-0.5">
+                    {stockRestant}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
 
           <h4 className="font-bold text-xs text-amber-400 uppercase tracking-wider">
-            Variantes & Stocks Disponibles
+            Variantes &amp; Stocks Disponibles
           </h4>
 
           <div className="space-y-3">
-            {selectedProduct?.variantes.map((v) => (
-              <div
-                key={v.id}
-                className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-bold text-white">
-                      Taille: {v.taille || 'Standard'} • Couleur: {v.couleur || 'Classique'}
-                    </p>
-                    <p className="text-slate-400 text-[11px]">Réf variante: {v.reference || '-'}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-black text-amber-400">{formatCurrency(v.prix)}</p>
-                    <p className="text-emerald-400 font-semibold">{v.quantiteStock} au total</p>
-                  </div>
-                </div>
+            {selectedProduct?.variantes.map((v) => {
+              const sp = effectivePointDeVenteId ? v.stocksParPoint?.find((s) => s.pointDeVenteId === effectivePointDeVenteId) : null;
+              const stockVarAffiche = effectivePointDeVenteId ? (sp?.quantite ?? 0) : v.quantiteStock;
 
-                {/* Ventilation par boutique */}
-                <div className="pt-2 border-t border-slate-800/80">
-                  <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
-                    <Store className="w-3 h-3 text-amber-400" />
-                    Répartition par Boutique :
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {pointsDeVente.map((pdv) => {
-                      const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === pdv.id);
-                      const qte = sp?.quantite ?? 0;
-                      return (
-                        <div
-                          key={pdv.id}
-                          className="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-[11px]"
-                        >
-                          <span className="text-slate-400 truncate">{pdv.nom}</span>
-                          <span className={`font-bold ${qte <= 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                            {qte} unité{qte > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      );
-                    })}
+              return (
+                <div
+                  key={v.id}
+                  className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2 text-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-white">
+                        Taille: {v.taille || 'Standard'} • Couleur: {v.couleur || 'Classique'}
+                      </p>
+                      <p className="text-slate-400 text-[11px]">Réf variante: {v.reference || '-'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black text-amber-400">{formatCurrency(v.prix)}</p>
+                      <p className="text-emerald-400 font-semibold">
+                        {stockVarAffiche} {effectiveBoutique ? `en stock (${effectiveBoutique.codeBoutique || effectiveBoutique.nom})` : 'au total'}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Ventilation par boutique : VISIBLE UNIQUEMENT POUR ADMIN ET GÉRANT (MASQUÉ POUR VENDEURS) */}
+                  {(isAdmin || isGerant) && !isVendeur && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <p className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1">
+                        <Store className="w-3 h-3 text-amber-400" />
+                        Répartition par Boutique (Supervision) :
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {pointsDeVente.map((pdv) => {
+                          const spPoint = v.stocksParPoint?.find((s) => s.pointDeVenteId === pdv.id);
+                          const qte = spPoint?.quantite ?? 0;
+                          return (
+                            <div
+                              key={pdv.id}
+                              className={`px-2.5 py-1 rounded-lg border text-[11px] flex items-center justify-between ${
+                                pdv.id === effectivePointDeVenteId
+                                  ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
+                                  : 'bg-slate-950 border-slate-800/80 text-slate-400'
+                              }`}
+                            >
+                              <span className="truncate">{pdv.nom}</span>
+                              <span className={`font-bold ${qte <= 5 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                {qte} unité{qte > 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between pt-4 border-t border-slate-800">
