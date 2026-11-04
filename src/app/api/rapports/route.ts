@@ -52,6 +52,10 @@ export async function GET(req: Request) {
     const venteWhere = {
       dateVente: { gte: dateDebut, lte: dateFin },
       ...(pvId ? { pointVenteId: pvId } : {}),
+      OR: [
+        { typeVente: { not: 'COMMANDE_EN_LIGNE' } },
+        { typeVente: 'COMMANDE_EN_LIGNE', statutPaiement: 'PAYE' },
+      ],
     };
 
     const depenseWhere = {

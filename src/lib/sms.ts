@@ -3,7 +3,7 @@
 
 export interface SmsNotification {
   id: string;
-  type: 'COMMANDE_CLIENT' | 'STOCK_FAIBLE' | 'VIREMENT_CAISSE' | 'SALAIRE';
+  type: 'COMMANDE_CLIENT' | 'STOCK_FAIBLE' | 'VIREMENT_CAISSE' | 'SALAIRE' | 'TRANSFERT_STOCK' | 'ACHAT_FOURNISSEUR';
   destinataire: string;
   titre: string;
   message: string;
@@ -122,7 +122,7 @@ export async function notifyAdminLowStock(stockInfo: {
   quantiteRestante: number;
   boutiqueNom: string;
 }) {
-  const message = `⚠️ ALERTE STOCK FAIBLE [${stockInfo.boutiqueNom}]\nLe produit "${stockInfo.produitNom} ${stockInfo.varianteInfo || ''}" n'a plus que ${stockInfo.quantiteRestante} unité(s) en stock (seuil ≤ 10) !\nPrévoyez un réapprovisionnement ou un transfert.`;
+  const message = `⚠️ ALERTE STOCK FAIBLE [${stockInfo.boutiqueNom}]\nLe produit "${stockInfo.produitNom}${stockInfo.varianteInfo ? ` ${stockInfo.varianteInfo}` : ''}" n'a plus que ${stockInfo.quantiteRestante} unité(s) en stock (seuil ≤ 10) !\nPrévoyez un réapprovisionnement ou un transfert.`;
 
   return sendSms({
     to: ADMIN_PHONE_SMS,
@@ -130,6 +130,79 @@ export async function notifyAdminLowStock(stockInfo: {
     titre: `Stock Faible : ${stockInfo.produitNom}`,
     message,
     boutiqueNom: stockInfo.boutiqueNom,
+  });
+}
+
+/**
+ * 3. Notification SMS lors d'un transfert de stock inter-boutiques
+ */
+export async function notifyAdminStockTransfert(transfert: {
+  reference: string;
+  origineNom: string;
+  destinationNom: string;
+  articles: Array<{ nom: string; quantite: number }>;
+  initieParNom?: string;
+}) {
+  const articlesList = transfert.articles
+    .map((a) => `${a.nom} (x${a.quantite})`)
+    .join(', ');
+  const message = `🔄 TRANSFERT DE STOCK [${transfert.reference}]\nDe : ${transfert.origineNom}\nVers : ${transfert.destinationNom}\nArticles : ${articlesList}\nInitié par : ${transfert.initieParNom || 'Système'}\nVérifiez et validez la réception dans l'ERP.`;
+
+  return sendSms({
+    to: ADMIN_PHONE_SMS,
+    type: 'TRANSFERT_STOCK',
+    titre: `Transfert Stock ${transfert.reference}`,
+    message,
+    reference: transfert.reference,
+  });
+}
+
+/**
+ * 4. Notification SMS lors d'un achat fournisseur (réapprovisionnement)
+ */
+export async function notifyAdminAchatFournisseur(achat: {
+  reference: string;
+  fournisseurNom: string;
+  boutiqueNom: string;
+  totalAchat: number;
+  articles: Array<{ nom: string; quantite: number; prixUnitaire: number }>;
+}) {
+  const articlesList = achat.articles
+    .map((a) => `${a.nom} x${a.quantite} (${a.prixUnitaire.toLocaleString('fr-FR')} GNF/u)`)
+    .join(', ');
+  const message = `📦 ACHAT FOURNISSEUR [${achat.reference}]\nFournisseur : ${achat.fournisseurNom}\nBoutique : ${achat.boutiqueNom}\nTotal : ${achat.totalAchat.toLocaleString('fr-FR')} GNF\nArticles reçus : ${articlesList}\nLe stock a été mis à jour automatiquement dans l'ERP.`;
+
+  return sendSms({
+    to: ADMIN_PHONE_SMS,
+    type: 'ACHAT_FOURNISSEUR',
+    titre: `Achat Fournisseur ${achat.reference}`,
+    message,
+    reference: achat.reference,
+    boutiqueNom: achat.boutiqueNom,
+  });
+}
+
+/**
+ * 5. Notification SMS lors d'un virement de caisse vers l'admin
+ */
+export async function notifyAdminVirement(virement: {
+  reference: string;
+  boutiqueNom: string;
+  vendeurNom: string;
+  montant: number;
+  statut: string;
+  notes?: string;
+}) {
+  const statutLabel = virement.statut === 'VALIDEE' ? 'VALIDÉ ✓' : 'EN ATTENTE ⏳';
+  const message = `💰 VIREMENT CAISSE [${virement.reference}] — ${statutLabel}\nBoutique : ${virement.boutiqueNom}\nVendeur : ${virement.vendeurNom}\nMontant viré : ${virement.montant.toLocaleString('fr-FR')} GNF\n${virement.notes ? `Note : ${virement.notes}` : ''}\nVérifiez et validez dans la Caisse de Virement de l'ERP.`;
+
+  return sendSms({
+    to: ADMIN_PHONE_SMS,
+    type: 'VIREMENT_CAISSE',
+    titre: `Virement ${virement.reference} — ${virement.boutiqueNom}`,
+    message,
+    reference: virement.reference,
+    boutiqueNom: virement.boutiqueNom,
   });
 }
 

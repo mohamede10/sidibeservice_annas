@@ -23,6 +23,7 @@ import {
   TrendingDown,
   Store,
   Banknote,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -34,6 +35,7 @@ interface SidebarProps {
 const navItems = [
   { href: '/', label: 'Tableau de Bord', icon: LayoutDashboard, badge: null, section: 'main' },
   { href: '/boutique', label: 'Boutique Vitrine', icon: Store, badge: 'En ligne', section: 'main' },
+  { href: '/commandes', label: 'Commandes', icon: ShoppingBag, badge: 'À valider', section: 'main' },
   { href: '/pos', label: 'Caisse & Vente POS', icon: ShoppingCart, badge: 'Direct', section: 'main' },
   { href: '/produits', label: 'Produits & Stocks', icon: Package, badge: null, section: 'main' },
   { href: '/transferts', label: 'Transferts Stock', icon: ArrowLeftRight, badge: 'Inter-mag', section: 'main' },
@@ -124,7 +126,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <Link href="/" className="flex items-center gap-3 group" onClick={() => setIsOpen(false)}>
             <div className="relative w-11 h-11 rounded-2xl overflow-hidden bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all border border-amber-400/30">
               <img
-                src="/img/logo.png"
+                src="/img/logo.jpeg"
                 alt="Logo SIDIBE SERVICE"
                 className="w-full h-full object-cover"
               />

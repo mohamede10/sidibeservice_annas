@@ -8,7 +8,10 @@ export async function GET(request: NextRequest) {
     const statut = searchParams.get('statut') || '';
     const pointVenteId = searchParams.get('pointVenteId');
 
-    const whereClause: Record<string, unknown> = {};
+    const whereClause: Record<string, unknown> = {
+      // Exclure les commandes en ligne (gérées dans /commandes) et les annulées depuis la boutique
+      NOT: { typeVente: 'COMMANDE_EN_LIGNE', statutPaiement: 'EN_ATTENTE' },
+    };
 
     if (pointVenteId && !isNaN(parseInt(pointVenteId))) {
       whereClause.pointVenteId = parseInt(pointVenteId);
@@ -120,10 +123,15 @@ export async function DELETE(request: NextRequest) {
         where: { referenceDoc: vente.reference },
       });
 
-      // 3. Ajuster la dette du client si un montant restait dû
+      // 3. Ajuster la dette du client si un montant restait dû (sans jamais passer en négatif)
       if (vente.clientId && vente.montantRestant > 0) {
-        const detteADeduire = Math.min(vente.montantRestant, (vente.client?.soldeDette ?? vente.montantRestant));
-        if (detteADeduire > 0) {
+        const clientActuel = await tx.client.findUnique({
+          where: { id: vente.clientId },
+          select: { soldeDette: true },
+        });
+        const detteActuelle = clientActuel?.soldeDette || 0;
+        if (detteActuelle > 0) {
+          const detteADeduire = Math.min(vente.montantRestant, detteActuelle);
           await tx.client.update({
             where: { id: vente.clientId },
             data: {

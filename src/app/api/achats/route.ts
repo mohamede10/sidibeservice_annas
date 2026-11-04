@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notifyAdminAchatFournisseur } from '@/lib/sms';
 
 export async function GET(req: NextRequest) {
   try {
@@ -142,15 +143,52 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Update stocks and prices for each line
+      // Update stocks and prices for each line (catalogue ou nouveau produit)
       for (const ligne of lignes) {
-        if (!ligne.varianteId) continue;
-
-        const varId = parseInt(String(ligne.varianteId));
+        let varId = ligne.varianteId ? parseInt(String(ligne.varianteId)) : null;
         const qte = parseInt(String(ligne.quantite));
         const prixGros = parseFloat(String(ligne.prixUnitaireGros));
         const prixVente = ligne.prixVenteDetail ? parseFloat(String(ligne.prixVenteDetail)) : null;
         const pdvId = parseInt(pointDeVenteId);
+
+        // Si aucun varianteId (produit saisi manuellement chez le fournisseur),
+        // on cherche ou on crée le produit dans le catalogue pour que le stock soit parfaitement suivi !
+        if (!varId && ligne.produitNom && ligne.produitNom.trim()) {
+          const nomClean = ligne.produitNom.trim();
+          let existingProd = await tx.produit.findFirst({
+            where: { nom: { equals: nomClean }, actif: true },
+            include: { variantes: true },
+          });
+
+          if (!existingProd) {
+            const newRef = `PRD-${Date.now().toString().slice(-6)}`;
+            existingProd = await tx.produit.create({
+              data: {
+                nom: nomClean,
+                ref: newRef,
+                categorieNom: ligne.categorieNom || 'Fournisseur',
+                actif: true,
+                variantes: {
+                  create: {
+                    taille: ligne.taille || 'Standard',
+                    couleur: ligne.couleur || 'Classique',
+                    reference: `${newRef}-VAR1`,
+                    prix: prixVente && prixVente > 0 ? prixVente : Math.round(prixGros * 1.3),
+                    coutAchat: prixGros,
+                    quantiteStock: 0, // sera incrémenté ci-dessous
+                  },
+                },
+              },
+              include: { variantes: true },
+            });
+          }
+
+          if (existingProd.variantes.length > 0) {
+            varId = existingProd.variantes[0].id;
+          }
+        }
+
+        if (!varId) continue;
 
         // Get current stock
         const stockParPoint = await tx.stockParPoint.findUnique({
@@ -199,6 +237,19 @@ export async function POST(req: NextRequest) {
       maxWait: 20000,
       timeout: 45000,
     });
+
+    // Notification SMS Admin lors d'un achat fournisseur
+    notifyAdminAchatFournisseur({
+      reference: ref,
+      fournisseurNom: fournisseurNom || 'Fournisseur Comptant',
+      boutiqueNom: achat.pointDeVente?.nom || `Boutique #${pointDeVenteId}`,
+      totalAchat,
+      articles: lignes.map((l: { produitNom?: string; quantite: string | number; prixUnitaireGros: string | number }) => ({
+        nom: l.produitNom || 'Article',
+        quantite: parseInt(String(l.quantite || 1)),
+        prixUnitaire: parseFloat(String(l.prixUnitaireGros || 0)),
+      })),
+    }).catch((e) => console.error('Erreur SMS Achat:', e));
 
     return NextResponse.json({ success: true, achat });
   } catch (error) {

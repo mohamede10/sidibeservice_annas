@@ -117,7 +117,17 @@ export default function AchatsPage() {
   const [produitSearch, setProduitSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Manual line (if product not in catalog)
+  // Mode d'ajout d'article : 'catalogue' (anciens produits) ou 'manuel' (nouveau produit)
+  const [ajoutMode, setAjoutMode] = useState<'catalogue' | 'manuel'>('catalogue');
+
+  // Sélection produit existant (Catalogue)
+  const [selectedCatalogProduitId, setSelectedCatalogProduitId] = useState<string>('');
+  const [selectedCatalogVarianteId, setSelectedCatalogVarianteId] = useState<string>('');
+  const [catalogQte, setCatalogQte] = useState<string>('1');
+  const [catalogPrixGros, setCatalogPrixGros] = useState<string>('');
+  const [catalogPrixDetail, setCatalogPrixDetail] = useState<string>('');
+
+  // Manual line (si produit pas encore dans le catalogue)
   const [manualNom, setManualNom] = useState('');
   const [manualQte, setManualQte] = useState('');
   const [manualPrixGros, setManualPrixGros] = useState('');
@@ -164,6 +174,84 @@ export default function AchatsPage() {
     }
   };
 
+  // Sélection d'un ancien produit du catalogue
+  const handleSelectCatalogProduit = (produitIdStr: string) => {
+    setSelectedCatalogProduitId(produitIdStr);
+    const p = produits.find((x) => x.id === parseInt(produitIdStr));
+    if (p && p.variantes.length > 0) {
+      const v = p.variantes[0];
+      setSelectedCatalogVarianteId(String(v.id));
+      setCatalogPrixGros(String(v.coutAchat || ''));
+      setCatalogPrixDetail(String(v.prix || ''));
+    } else {
+      setSelectedCatalogVarianteId('');
+      setCatalogPrixGros('');
+      setCatalogPrixDetail('');
+    }
+  };
+
+  const handleSelectCatalogVariante = (varianteIdStr: string) => {
+    setSelectedCatalogVarianteId(varianteIdStr);
+    const p = produits.find((x) => x.id === parseInt(selectedCatalogProduitId));
+    const v = p?.variantes.find((x) => x.id === parseInt(varianteIdStr));
+    if (v) {
+      setCatalogPrixGros(String(v.coutAchat || ''));
+      setCatalogPrixDetail(String(v.prix || ''));
+    }
+  };
+
+  const handleAddCatalogProduct = () => {
+    if (!selectedCatalogProduitId || !selectedCatalogVarianteId) {
+      showWarning('Veuillez sélectionner un produit et sa variante.');
+      return;
+    }
+    const qte = parseInt(catalogQte);
+    if (isNaN(qte) || qte <= 0) {
+      showWarning('Veuillez saisir une quantité valide (au moins 1).');
+      return;
+    }
+    const prixGros = parseFloat(catalogPrixGros);
+    if (isNaN(prixGros) || prixGros < 0) {
+      showWarning('Veuillez renseigner un prix de gros valide.');
+      return;
+    }
+    const prixDetail = parseFloat(catalogPrixDetail) || 0;
+
+    const p = produits.find((x) => x.id === parseInt(selectedCatalogProduitId));
+    const v = p?.variantes.find((x) => x.id === parseInt(selectedCatalogVarianteId));
+    if (!p || !v) return;
+
+    setCartLignes((prev) => {
+      const existing = prev.find((l) => l.varianteId === v.id);
+      if (existing) {
+        return prev.map((l) =>
+          l.varianteId === v.id
+            ? {
+                ...l,
+                quantite: l.quantite + qte,
+                prixUnitaireGros: prixGros,
+                prixVenteDetail: prixDetail > 0 ? prixDetail : l.prixVenteDetail,
+              }
+            : l
+        );
+      }
+      return [
+        ...prev,
+        {
+          varianteId: v.id,
+          produitNom: p.nom,
+          varianteInfo: `${v.taille || 'Standard'} / ${v.couleur || 'Classique'}`.trim(),
+          quantite: qte,
+          prixUnitaireGros: prixGros,
+          prixVenteDetail: prixDetail,
+        },
+      ];
+    });
+
+    setCatalogQte('1');
+    showSuccess(`Article "${p.nom}" ajouté au bon d'achat.`);
+  };
+
   const addProduitToCart = (produit: ProduitAvecVariantes, variante: Variante) => {
     setCartLignes((prev) => {
       const existing = prev.find((l) => l.varianteId === variante.id);
@@ -196,7 +284,7 @@ export default function AchatsPage() {
       ...prev,
       {
         produitNom: manualNom,
-        varianteInfo: 'Saisie manuelle',
+        varianteInfo: 'Nouveau produit fournisseur',
         quantite: parseInt(manualQte),
         prixUnitaireGros: parseFloat(manualPrixGros),
         prixVenteDetail: parseFloat(manualPrixDetail) || 0,
@@ -206,6 +294,7 @@ export default function AchatsPage() {
     setManualQte('');
     setManualPrixGros('');
     setManualPrixDetail('');
+    showSuccess(`Article "${manualNom}" ajouté au bon d'achat.`);
   };
 
   const updateCartLine = (index: number, field: keyof CartLigne, value: string | number) => {
@@ -645,92 +734,252 @@ export default function AchatsPage() {
                   </div>
                 </div>
 
-                {/* Sélection produits du catalogue */}
-                <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700 space-y-3">
-                  <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                    Ajouter des articles depuis le catalogue
-                  </p>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Rechercher un produit..."
-                      value={produitSearch}
-                      onChange={(e) => setProduitSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
-                    />
+                {/* =========================================================================
+                    CHOIX DU MODE : ANCIEN PRODUIT (CATALOGUE) OU NOUVEAU PRODUIT (MANUEL)
+                ========================================================================= */}
+                <div className="space-y-3">
+                  <div className="flex rounded-2xl bg-slate-900 p-1 border border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setAjoutMode('catalogue')}
+                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        ajoutMode === 'catalogue'
+                          ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Package className="w-4 h-4" />
+                      <span>Sélectionner un ancien produit (Catalogue)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAjoutMode('manuel')}
+                      className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                        ajoutMode === 'manuel'
+                          ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/20'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Saisir un nouveau produit</span>
+                    </button>
                   </div>
-                  {produitSearch.length > 0 && (
-                    <div className="max-h-36 overflow-y-auto space-y-1">
-                      {filteredProduits.slice(0, 15).map((p) =>
-                        p.variantes.map((v) => (
-                          <button
-                            key={v.id}
-                            onClick={() => addProduitToCart(p, v)}
-                            className="w-full text-left px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700 hover:border-emerald-400/50 text-xs flex items-center justify-between"
-                          >
+
+                  {/* OPTION 1 : SÉLECTIONNER UN ANCIEN PRODUIT DU CATALOGUE */}
+                  {ajoutMode === 'catalogue' && (
+                    <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Package className="w-3.5 h-3.5" />
+                          Choisir parmi les produits existants
+                        </p>
+                        <span className="text-[11px] text-slate-400">
+                          {produits.length} produit(s) disponible(s)
+                        </span>
+                      </div>
+
+                      {/* Sélecteur de produit déroulant */}
+                      <div>
+                        <label className="text-xs text-slate-300 block mb-1 font-semibold">
+                          Produit existant *
+                        </label>
+                        <select
+                          value={selectedCatalogProduitId}
+                          onChange={(e) => handleSelectCatalogProduit(e.target.value)}
+                          className="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white focus:outline-none focus:border-emerald-400"
+                        >
+                          <option value="">-- Choisir un produit du catalogue --</option>
+                          {produits.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.nom} {p.variantes.length > 0 ? `(${formatCurrency(p.variantes[0].coutAchat || 0)})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Si le produit sélectionné a des variantes */}
+                      {selectedCatalogProduitId && (
+                        <>
+                          {(() => {
+                            const p = produits.find((x) => x.id === parseInt(selectedCatalogProduitId));
+                            if (!p || p.variantes.length <= 1) return null;
+                            return (
+                              <div>
+                                <label className="text-xs text-slate-300 block mb-1 font-semibold">
+                                  Variante / Modèle *
+                                </label>
+                                <select
+                                  value={selectedCatalogVarianteId}
+                                  onChange={(e) => handleSelectCatalogVariante(e.target.value)}
+                                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                                >
+                                  {p.variantes.map((v) => (
+                                    <option key={v.id} value={v.id}>
+                                      {v.taille || 'Standard'} / {v.couleur || 'Classique'} • Prix gros : {formatCurrency(v.coutAchat)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Champs quantité et prix pour ce produit sélectionné */}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                             <div>
-                              <span className="font-semibold text-white">{p.nom}</span>
-                              <span className="text-slate-400 ml-1">
-                                {v.taille} / {v.couleur}
-                              </span>
+                              <label className="text-xs text-slate-400 block mb-1 font-medium">
+                                Quantité reçue *
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={catalogQte}
+                                onChange={(e) => setCatalogQte(e.target.value)}
+                                placeholder="1"
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white font-bold focus:outline-none focus:border-emerald-400"
+                              />
                             </div>
-                            <span className="text-slate-400">
-                              Gros: {formatCurrency(v.coutAchat)} | Détail: {formatCurrency(v.prix)}
-                            </span>
+                            <div>
+                              <label className="text-xs text-slate-400 block mb-1 font-medium">
+                                Prix Achat Gros unitaire (GNF) *
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={catalogPrixGros}
+                                onChange={(e) => setCatalogPrixGros(e.target.value)}
+                                placeholder="Prix d'achat fournisseur"
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-amber-400 font-bold focus:outline-none focus:border-emerald-400"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-slate-400 block mb-1 font-medium">
+                                Prix Vente Détail (Optionnel)
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={catalogPrixDetail}
+                                onChange={(e) => setCatalogPrixDetail(e.target.value)}
+                                placeholder="Prix boutique"
+                                className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-emerald-400"
+                              />
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleAddCatalogProduct}
+                            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5 transition-all mt-2"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Ajouter cet article au bon d&apos;achat</span>
                           </button>
-                        ))
+                        </>
                       )}
+
+                      {/* Recherche rapide textuelle facultative */}
+                      <div className="pt-2 border-t border-slate-800">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                          <input
+                            type="text"
+                            placeholder="Ou taper un nom pour filtrer rapidement le catalogue..."
+                            value={produitSearch}
+                            onChange={(e) => setProduitSearch(e.target.value)}
+                            className="w-full pl-9 pr-4 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+                        {produitSearch.length > 0 && (
+                          <div className="max-h-32 overflow-y-auto space-y-1 mt-2">
+                            {filteredProduits.slice(0, 10).map((p) =>
+                              p.variantes.map((v) => (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => addProduitToCart(p, v)}
+                                  className="w-full text-left px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-700 hover:border-emerald-400/50 text-xs flex items-center justify-between"
+                                >
+                                  <div>
+                                    <span className="font-semibold text-white">{p.nom}</span>
+                                    <span className="text-slate-400 ml-1">
+                                      ({v.taille || 'Std'} / {v.couleur || 'Classique'})
+                                    </span>
+                                  </div>
+                                  <span className="text-emerald-400 font-bold">
+                                    +1 ({formatCurrency(v.coutAchat)})
+                                  </span>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                </div>
 
-                {/* Manual line entry */}
-                <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700 space-y-3">
-                  <p className="text-xs font-bold text-sky-400 uppercase tracking-wider">
-                    Ou ajouter un article manuellement
-                  </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <input
-                      type="text"
-                      placeholder="Nom produit"
-                      value={manualNom}
-                      onChange={(e) => setManualNom(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                    />
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Quantité"
-                      value={manualQte}
-                      onChange={(e) => setManualQte(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="Prix Gros (U)"
-                      value={manualPrixGros}
-                      onChange={(e) => setManualPrixGros(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="Prix Détail (U)"
-                      value={manualPrixDetail}
-                      onChange={(e) => setManualPrixDetail(e.target.value)}
-                      className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
-                    />
-                  </div>
-                  <button
-                    onClick={addManualLine}
-                    disabled={!manualNom || !manualQte || !manualPrixGros}
-                    className="px-4 py-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 text-xs font-bold hover:bg-sky-500/30 disabled:opacity-40"
-                  >
-                    <Plus className="w-3 h-3 inline mr-1" />
-                    Ajouter
-                  </button>
+                  {/* OPTION 2 : SAISIR UN NOUVEAU PRODUIT MANUELLEMENT */}
+                  {ajoutMode === 'manuel' && (
+                    <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/30 space-y-3">
+                      <p className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Plus className="w-3.5 h-3.5" />
+                        Saisir un nouveau produit (pas encore au catalogue)
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                        <div className="sm:col-span-1">
+                          <label className="text-[11px] text-slate-400 block mb-1">Nom du produit *</label>
+                          <input
+                            type="text"
+                            placeholder="Ex: Tapis Royal 3x4"
+                            value={manualNom}
+                            onChange={(e) => setManualNom(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-slate-400 block mb-1">Quantité reçue *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Ex: 10"
+                            value={manualQte}
+                            onChange={(e) => setManualQte(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-slate-400 block mb-1">Prix Gros unitaire *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Ex: 50000"
+                            value={manualPrixGros}
+                            onChange={(e) => setManualPrixGros(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-amber-400 font-bold placeholder-slate-500 focus:outline-none focus:border-sky-400"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-slate-400 block mb-1">Prix Vente Détail</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Ex: 75000"
+                            value={manualPrixDetail}
+                            onChange={(e) => setManualPrixDetail(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addManualLine}
+                        disabled={!manualNom || !manualQte || !manualPrixGros}
+                        className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-black shadow-lg shadow-sky-500/20 flex items-center gap-1.5 transition-all disabled:opacity-40"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Ajouter ce nouveau produit au bon d&apos;achat</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Cart / Articles list */}

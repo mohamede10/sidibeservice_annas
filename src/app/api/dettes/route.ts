@@ -9,10 +9,11 @@ export async function GET(request: NextRequest) {
     if (pointVenteId && !isNaN(parseInt(pointVenteId))) {
       const pvId = parseInt(pointVenteId);
 
-      // Récupérer les ventes impayées ou partielles de cette boutique spécifique
+      // Récupérer les ventes impayées ou partielles de cette boutique spécifique (hors commandes en ligne en attente)
       const ventesImpayees = await prisma.vente.findMany({
         where: {
           pointVenteId: pvId,
+          typeVente: { not: 'COMMANDE_EN_LIGNE' },
           statutPaiement: { in: ['IMPAYE', 'PARTIEL'] },
           montantRestant: { gt: 0 },
         },
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
       include: {
         ventes: {
           where: {
+            typeVente: { not: 'COMMANDE_EN_LIGNE' },
             statutPaiement: { in: ['IMPAYE', 'PARTIEL'] },
           },
           orderBy: { dateVente: 'desc' },

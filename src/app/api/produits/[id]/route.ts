@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notifyAdminLowStock } from '@/lib/sms';
 
 export async function GET(
   request: NextRequest,
@@ -95,7 +96,41 @@ export async function PUT(
 
       if (prix !== undefined) varUpdateData.prix = parseFloat(prix) || 0;
       if (coutAchat !== undefined) varUpdateData.coutAchat = parseFloat(coutAchat) || 0;
-      if (quantiteStock !== undefined) varUpdateData.quantiteStock = parseInt(quantiteStock) || 0;
+      if (quantiteStock !== undefined) {
+        const newStock = parseInt(quantiteStock) || 0;
+        varUpdateData.quantiteStock = newStock;
+
+        // Synchroniser le stock en boutique
+        const existingSpp = await prisma.stockParPoint.findFirst({
+          where: { varianteId: firstVar.id },
+        });
+        if (existingSpp) {
+          await prisma.stockParPoint.update({
+            where: { id: existingSpp.id },
+            data: { quantite: newStock },
+          });
+        } else {
+          const firstPdv = await prisma.pointDeVente.findFirst({ where: { active: true } });
+          if (firstPdv) {
+            await prisma.stockParPoint.create({
+              data: {
+                varianteId: firstVar.id,
+                pointDeVenteId: firstPdv.id,
+                quantite: newStock,
+              },
+            });
+          }
+        }
+
+        if (newStock <= 10) {
+          notifyAdminLowStock({
+            produitNom: updatedProduit.nom,
+            varianteInfo: `${firstVar.taille || ''} ${firstVar.couleur || ''}`.trim(),
+            quantiteRestante: newStock,
+            boutiqueNom: 'Stock Principal',
+          }).catch((e) => console.error('Erreur SMS stock faible:', e));
+        }
+      }
       if (taille !== undefined) varUpdateData.taille = taille;
       if (couleur !== undefined) varUpdateData.couleur = couleur;
 

@@ -32,9 +32,20 @@ export async function GET(request: NextRequest) {
             stocksParPoint: true,
           },
         },
+        venteLignes: {
+          select: {
+            quantite: true,
+            varianteId: true,
+            vente: {
+              select: {
+                pointVenteId: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { id: 'desc' },
-      take: 100,
+      take: 200,
     });
 
     const categories = await prisma.categorie.findMany({
@@ -47,9 +58,43 @@ export async function GET(request: NextRequest) {
       orderBy: { nom: 'asc' },
     });
 
+    // Calcul précis des quantités ajoutées (entrées), vendues (sorties) et en stock
+    const enrichedProduits = produits.map((p) => {
+      const totalVendu = p.venteLignes.reduce((sum, vl) => sum + vl.quantite, 0);
+      const totalStock = p.variantes.reduce((sum, v) => sum + v.quantiteStock, 0);
+      const totalAjoute = totalStock + totalVendu;
+
+      const statsParBoutique: Record<number, { stock: number; vendu: number; ajoute: number }> = {};
+      for (const pdv of pointsDeVente) {
+        let stockBoutique = 0;
+        for (const v of p.variantes) {
+          const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === pdv.id);
+          if (sp) stockBoutique += sp.quantite;
+        }
+
+        const venduBoutique = p.venteLignes
+          .filter((vl) => vl.vente?.pointVenteId === pdv.id)
+          .reduce((sum, vl) => sum + vl.quantite, 0);
+
+        statsParBoutique[pdv.id] = {
+          stock: stockBoutique,
+          vendu: venduBoutique,
+          ajoute: stockBoutique + venduBoutique,
+        };
+      }
+
+      return {
+        ...p,
+        totalStock,
+        totalVendu,
+        totalAjoute,
+        statsParBoutique,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      produits,
+      produits: enrichedProduits,
       categories,
       pointsDeVente,
     });

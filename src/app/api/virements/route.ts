@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notifyAdminVirement } from '@/lib/sms';
 
 export async function GET(req: NextRequest) {
   try {
@@ -197,6 +198,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Alerte SMS Admin lors du virement
+    notifyAdminVirement({
+      reference: virement.reference,
+      boutiqueNom: virement.pointDeVente.nom,
+      vendeurNom: virement.utilisateur.nom,
+      montant: virement.soldeReel,
+      statut: virement.statut,
+      notes: notes || undefined,
+    }).catch((e) => console.error('Erreur SMS Virement POST:', e));
+
     return NextResponse.json({ success: true, virement });
   } catch (error) {
     console.error('Erreur API Virements POST:', error);
@@ -224,6 +235,16 @@ export async function PATCH(req: NextRequest) {
         utilisateur: { select: { id: true, nom: true } },
       },
     });
+
+    // Alerte SMS Admin lors du virement
+    notifyAdminVirement({
+      reference: virement.reference,
+      boutiqueNom: virement.pointDeVente.nom,
+      vendeurNom: virement.utilisateur.nom,
+      montant: virement.soldeReel,
+      statut: virement.statut,
+      notes: notes || undefined,
+    }).catch((e) => console.error('Erreur SMS Virement POST:', e));
 
     return NextResponse.json({ success: true, virement });
   } catch (error) {

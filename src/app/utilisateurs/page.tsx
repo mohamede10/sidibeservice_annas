@@ -23,6 +23,8 @@ import {
   Filter,
   Trash2,
   AlertTriangle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -92,6 +94,7 @@ interface UserFormData {
   pointVenteId: string;
   ville: string;
   profil: string;
+  motDePasse: string;
 }
 
 function UserModal({
@@ -115,7 +118,9 @@ function UserModal({
     pointVenteId: user?.pointVenteId ? String(user.pointVenteId) : '',
     ville: user?.ville || 'Kankan',
     profil: user?.profil || '',
+    motDePasse: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { showSuccess, showError } = useToast();
@@ -125,7 +130,10 @@ function UserModal({
     setLoading(true);
     setError('');
     try {
-      const payload = isEdit ? { id: user!.id, ...form } : form;
+      const payload: Record<string, unknown> = isEdit ? { id: user!.id, ...form } : { ...form };
+      if (isEdit && (!form.motDePasse || form.motDePasse.trim() === '')) {
+        delete payload.motDePasse;
+      }
       const res = await fetch('/api/users', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,7 +188,7 @@ function UserModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <InputField label="Nom complet *" id="nom" value={form.nom} onChange={set('nom')} placeholder="Prénom Nom" required />
-            <InputField label="Login *" id="login" value={form.login} onChange={set('login')} placeholder="vendeur.Kankan" required disabled={isEdit} />
+            <InputField label="Identifiant (Login) *" id="login" value={form.login} onChange={set('login')} placeholder="vendeur.Kankan" required />
           </div>
 
           <SelectField label="Rôle *" id="role" value={form.role} onChange={set('role')}>
@@ -218,12 +226,45 @@ function UserModal({
 
           <InputField label="Profil / Poste" id="profil" value={form.profil} onChange={set('profil')} placeholder="Ex: Caissier Principal" />
 
-          {!isEdit && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
-              <Key className="w-4 h-4 flex-shrink-0" />
-              Mot de passe par défaut : <strong>123456</strong> (à changer à la première connexion)
+          {/* Champ Mot de Passe (Création ou Modification) */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label htmlFor="motDePasse" className="block text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5" />
+                {isEdit ? 'Modifier le Mot de Passe' : 'Définir le Mot de Passe'}
+              </label>
+              {isEdit ? (
+                <span className="text-[10px] text-slate-500 font-medium">Laisser vide si inchangé</span>
+              ) : (
+                <span className="text-[10px] text-amber-400/90 font-medium">Défaut: 123456</span>
+              )}
             </div>
-          )}
+
+            <div className="relative">
+              <input
+                id="motDePasse"
+                type={showPassword ? 'text' : 'password'}
+                value={form.motDePasse}
+                onChange={set('motDePasse')}
+                placeholder={isEdit ? 'Saisir un nouveau mot de passe...' : '123456 ou mot de passe personnalisé'}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-white focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/20 transition-all placeholder:text-slate-500 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                title={showPassword ? 'Masquer' : 'Afficher'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              {isEdit
+                ? 'Saisissez un nouveau mot de passe uniquement si vous souhaitez réinitialiser ou changer les accès de cet utilisateur.'
+                : 'Saisissez le mot de passe souhaité, ou laissez vide pour appliquer automatiquement 123456.'}
+            </p>
+          </div>
 
           {error && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">

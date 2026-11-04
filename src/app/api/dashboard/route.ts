@@ -11,15 +11,23 @@ export async function GET(request: NextRequest) {
       // =========================================================================
       // VUE BOUTIQUE SPÉCIFIQUE (Pour chaque Vendeur ou Admin filtrant sur 1 boutique)
       // =========================================================================
+      const realVenteFilterBoutique = {
+        pointVenteId,
+        OR: [
+          { typeVente: { not: 'COMMANDE_EN_LIGNE' } },
+          { typeVente: 'COMMANDE_EN_LIGNE', statutPaiement: 'PAYE' },
+        ],
+      };
+
       const [pointDeVente, totalProduits, totalVentes, ventesAgg, recentVentes, stockParPointList] = await Promise.all([
         prisma.pointDeVente.findUnique({
           where: { id: pointVenteId },
           select: { id: true, nom: true, codeBoutique: true, ville: true },
         }),
         prisma.produit.count({ where: { actif: true } }),
-        prisma.vente.count({ where: { pointVenteId } }),
+        prisma.vente.count({ where: realVenteFilterBoutique }),
         prisma.vente.aggregate({
-          where: { pointVenteId },
+          where: realVenteFilterBoutique,
           _sum: {
             total: true,
             montantPaye: true,
@@ -27,7 +35,7 @@ export async function GET(request: NextRequest) {
           },
         }),
         prisma.vente.findMany({
-          where: { pointVenteId },
+          where: realVenteFilterBoutique,
           take: 10,
           orderBy: { dateVente: 'desc' },
           include: {
@@ -129,10 +137,11 @@ export async function GET(request: NextRequest) {
         }));
       }
 
-      // Ventes avec dettes de cette boutique
+      // Ventes avec dettes de cette boutique (hors commandes en attente)
       const ventesAvecDettes = await prisma.vente.findMany({
         where: {
           pointVenteId,
+          typeVente: { not: 'COMMANDE_EN_LIGNE' },
           statutPaiement: { in: ['IMPAYE', 'PARTIEL'] },
           montantRestant: { gt: 0 },
         },
@@ -151,7 +160,10 @@ export async function GET(request: NextRequest) {
       // Nombre de clients ayant acheté dans cette boutique
       const distinctClients = await prisma.vente.groupBy({
         by: ['clientId'],
-        where: { pointVenteId, clientId: { not: null } },
+        where: {
+          ...realVenteFilterBoutique,
+          clientId: { not: null },
+        },
       });
 
       return NextResponse.json({
@@ -177,6 +189,13 @@ export async function GET(request: NextRequest) {
     // =========================================================================
     // VUE GLOBALE CONSOLIDÉE (Pour l'ADMIN - Toutes les Boutiques)
     // =========================================================================
+    const realVenteFilterGlobal = {
+      OR: [
+        { typeVente: { not: 'COMMANDE_EN_LIGNE' } },
+        { typeVente: 'COMMANDE_EN_LIGNE', statutPaiement: 'PAYE' },
+      ],
+    };
+
     const [
       totalProduits,
       totalClients,
@@ -193,8 +212,9 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
       prisma.produit.count({ where: { actif: true } }),
       prisma.client.count(),
-      prisma.vente.count(),
+      prisma.vente.count({ where: realVenteFilterGlobal }),
       prisma.vente.aggregate({
+        where: realVenteFilterGlobal,
         _sum: {
           total: true,
           montantPaye: true,
@@ -202,11 +222,13 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.client.aggregate({
+        where: { soldeDette: { gt: 0 } },
         _sum: {
           soldeDette: true,
         },
       }),
       prisma.vente.findMany({
+        where: realVenteFilterGlobal,
         take: 10,
         orderBy: { dateVente: 'desc' },
         include: {
@@ -261,6 +283,7 @@ export async function GET(request: NextRequest) {
       }),
       prisma.vente.groupBy({
         by: ['pointVenteId'],
+        where: realVenteFilterGlobal,
         _sum: {
           total: true,
           montantPaye: true,
@@ -362,7 +385,7 @@ export async function GET(request: NextRequest) {
         totalVentes,
         chiffreAffaires: ventesAgg._sum.total || 0,
         montantEncaisse: ventesAgg._sum.montantPaye || 0,
-        totalDettes: (clientsDettesAgg._sum.soldeDette || 0) + (ventesAgg._sum.montantRestant || 0),
+        totalDettes: Math.max(0, (clientsDettesAgg._sum.soldeDette || 0) + (ventesAgg._sum.montantRestant || 0)),
         montantTotalStock: montantTotalStockGlobal,
         totalStockArticles: totalStockArticlesGlobal,
       },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { notifyAdminStockTransfert } from '@/lib/sms';
 
 export async function GET(req: NextRequest) {
   try {
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
         include: {
           pointOrigine: { select: { id: true, nom: true } },
           pointDestination: { select: { id: true, nom: true } },
+          initiePar: { select: { id: true, nom: true } },
           lignes: true,
         },
       });
@@ -208,6 +210,18 @@ export async function POST(req: NextRequest) {
       maxWait: 20000,
       timeout: 45000,
     });
+
+    // Notification SMS Admin lors d'un transfert de stock
+    notifyAdminStockTransfert({
+      reference: ref,
+      origineNom: transfert.pointOrigine.nom,
+      destinationNom: transfert.pointDestination.nom,
+      initieParNom: transfert.initiePar?.nom || undefined,
+      articles: lignes.map((l: { varianteId: string | number; quantite: string | number; nomArticle?: string }) => ({
+        nom: l.nomArticle || varMap.get(parseInt(String(l.varianteId))) || 'Article',
+        quantite: parseInt(String(l.quantite)),
+      })),
+    }).catch((e) => console.error('Erreur SMS Transfert:', e));
 
     return NextResponse.json({ success: true, transfert });
   } catch (error) {

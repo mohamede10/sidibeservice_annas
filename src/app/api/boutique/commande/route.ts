@@ -1,7 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { notifyAdminNewOrder, notifyAdminLowStock } from '@/lib/sms';
+import { notifyAdminNewOrder } from '@/lib/sms';
 
+// GET - Lister les commandes en ligne (admin)
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const statut = searchParams.get('statut') || 'EN_ATTENTE';
+    const all = searchParams.get('all') === '1';
+
+    const whereClause: Record<string, unknown> = {
+      typeVente: 'COMMANDE_EN_LIGNE',
+    };
+
+    if (!all) {
+      whereClause.statutPaiement = statut;
+    }
+
+    const commandes = await prisma.vente.findMany({
+      where: whereClause,
+      include: {
+        client: true,
+        pointVente: true,
+        lignes: {
+          include: {
+            produit: { select: { id: true, nom: true, imageUrl: true } },
+            variante: { select: { id: true, taille: true, couleur: true, prix: true } },
+          },
+        },
+        factures: true,
+      },
+      orderBy: { dateVente: 'desc' },
+      take: 200,
+    });
+
+    return NextResponse.json({ success: true, commandes });
+  } catch (error) {
+    console.error('Erreur GET commandes:', error);
+    return NextResponse.json({ success: false, error: 'Erreur chargement commandes' }, { status: 500 });
+  }
+}
+
+// POST - Créer une nouvelle commande depuis la boutique vitrine
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -38,7 +78,7 @@ export async function POST(request: NextRequest) {
       totalCommande += qte * prix;
     }
 
-    // Récupération d'un point de vente par défaut (Kankan ou le premier disponible)
+    // Récupération d'un point de vente actif
     let pointVente = await prisma.pointDeVente.findFirst({
       where: { active: true },
     });
@@ -50,14 +90,14 @@ export async function POST(request: NextRequest) {
     const pointVenteId = pointVente ? pointVente.id : 1;
     const pointVenteNom = pointVente ? pointVente.nom : 'Sidibe Services Boutique';
 
-    // Générer une référence unique de commande e-commerce
+    // Générer une référence unique
     const refDate = new Date();
     const refSuffix = Math.floor(1000 + Math.random() * 9000);
     const referenceCommande = `CMD-${refDate.getFullYear().toString().slice(-2)}${(refDate.getMonth() + 1)
       .toString()
       .padStart(2, '0')}-${refSuffix}`;
 
-    // Note enrichie avec type de livraison et ville
+    // Note enrichie
     const noteComplete = [
       `[COMMANDE EN LIGNE]`,
       `Livraison: ${typeLivraison === 'RETRAIT_BOUTIQUE' ? 'Retrait en boutique' : 'Livraison à domicile'}`,
@@ -69,7 +109,7 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' | ');
 
-    // Exécution transactionnelle de la commande
+    // Enregistrement de la commande SANS toucher au stock
     const commande = await prisma.$transaction(async (tx) => {
       // 1. Chercher ou créer le client
       let client = await tx.client.findFirst({
@@ -88,8 +128,9 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // 2. Créer l'enregistrement de vente (type COMMANDE_EN_LIGNE)
-      const nouvelleVente = await tx.vente.create({
+      // 2. Créer la commande avec statut EN_ATTENTE (= IMPAYE, typeVente = COMMANDE_EN_LIGNE)
+      //    LE STOCK N'EST PAS DÉCRÉMENTÉ ICI - il le sera uniquement à la validation admin
+      const nouvelleCommande = await tx.vente.create({
         data: {
           reference: referenceCommande,
           dateVente: new Date(),
@@ -99,17 +140,26 @@ export async function POST(request: NextRequest) {
           montantPaye: 0,
           montantRestant: totalCommande,
           modePaiement: modePaiement,
-          statutPaiement: 'IMPAYE',
+          statutPaiement: 'EN_ATTENTE', // Statut spécifique commande en ligne
           typeVente: 'COMMANDE_EN_LIGNE',
           clientId: client.id,
           pointVenteId: pointVenteId,
           pointVenteNom: pointVenteNom,
           notes: noteComplete,
           lignes: {
-            create: items.map((item: any) => ({
+            create: items.map((item: {
+              produitId?: number | string;
+              varianteId?: number | string;
+              nomProduit?: string;
+              nom?: string;
+              varianteInfo?: string;
+              quantite?: number | string;
+              prix?: number | string;
+              coutAchat?: number | string;
+            }) => ({
               produitId: item.produitId ? parseInt(String(item.produitId)) : undefined,
               varianteId: item.varianteId ? parseInt(String(item.varianteId)) : undefined,
-              nomProduit: item.nomProduit || item.nom,
+              nomProduit: item.nomProduit || item.nom || 'Article',
               varianteInfo: item.varianteInfo || undefined,
               quantite: parseInt(String(item.quantite || 1)),
               prixUnitaire: parseFloat(String(item.prix || 0)),
@@ -124,53 +174,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 3. Mettre à jour les stocks si varianteId fourni et déclencher alerte SMS si stock <= 10
-      for (const item of items) {
-        if (item.varianteId) {
-          const v = await tx.produitVariante.findUnique({
-            where: { id: parseInt(String(item.varianteId)) },
-            include: { produit: true },
-          });
-
-          if (v) {
-            const qte = parseInt(String(item.quantite || 1));
-            const stockApres = Math.max(0, v.quantiteStock - qte);
-
-            await tx.produitVariante.update({
-              where: { id: v.id },
-              data: { quantiteStock: stockApres },
-            });
-
-            await tx.stockMouvement.create({
-              data: {
-                varianteId: v.id,
-                pointDeVenteId: pointVenteId,
-                typeMouvement: 'VENTE',
-                quantite: -qte,
-                stockAvant: v.quantiteStock,
-                stockApres: stockApres,
-                motif: `Commande Web ${referenceCommande}`,
-                referenceDoc: referenceCommande,
-              },
-            });
-
-            // Alerte SMS automatique si le stock tombe à 10 ou moins
-            if (stockApres <= 10) {
-              notifyAdminLowStock({
-                produitNom: v.produit?.nom || 'Article',
-                varianteInfo: `${v.taille || ''} ${v.couleur || ''}`.trim(),
-                quantiteRestante: stockApres,
-                boutiqueNom: pointVenteNom,
-              }).catch((e) => console.error('Erreur SMS Low Stock:', e));
-            }
-          }
-        }
-      }
-
-      return nouvelleVente;
+      return nouvelleCommande;
     });
 
-    // Envoyer le SMS de notification à l'administrateur
+    // Envoyer le SMS de notification à l'administrateur (sans bloquer la réponse)
     notifyAdminNewOrder({
       reference: commande.reference,
       clientNom: nomClient,
@@ -178,8 +185,8 @@ export async function POST(request: NextRequest) {
       ville,
       adresse,
       total: totalCommande,
-      items: items.map((i: any) => ({
-        nom: i.nomProduit || i.nom,
+      items: items.map((i: { nomProduit?: string; nom?: string; quantite?: number | string; prix?: number | string }) => ({
+        nom: i.nomProduit || i.nom || 'Article',
         quantite: parseInt(String(i.quantite || 1)),
         prix: parseFloat(String(i.prix || 0)),
       })),
@@ -187,7 +194,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Commande enregistrée avec succès',
+      message: 'Commande enregistrée avec succès. Elle sera traitée par notre équipe.',
       commande: {
         id: commande.id,
         reference: commande.reference,
@@ -197,14 +204,15 @@ export async function POST(request: NextRequest) {
         pointVenteNom: commande.pointVenteNom,
         dateVente: commande.dateVente,
         nbArticles: items.length,
+        statut: 'EN_ATTENTE',
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Erreur lors de la commande vitrine:', error);
     return NextResponse.json(
       {
         success: false,
-        error: error.message || 'Erreur lors de la validation de la commande',
+        error: (error as Error).message || 'Erreur lors de la validation de la commande',
       },
       { status: 500 }
     );

@@ -22,7 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { nom, login, telephone, email, role, pointVenteId, ville, profil } = body;
+    const { nom, login, telephone, email, role, pointVenteId, ville, profil, motDePasse } = body;
 
     if (!nom || !login) {
       return NextResponse.json({ success: false, error: 'Nom et login sont obligatoires' }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         pointVenteId: pointVenteId ? parseInt(pointVenteId) : null,
         ville: ville || 'Kankan',
         profil: profil || null,
-        motDePasse: '123456', // Mot de passe par défaut
+        motDePasse: motDePasse && motDePasse.trim() ? motDePasse.trim() : '123456',
         active: true,
       },
       include: {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const { motDePasse, ...safe } = user;
+    const { motDePasse: _, ...safe } = user;
     return NextResponse.json({ success: true, user: safe });
   } catch (error: unknown) {
     console.error('Erreur API Users POST:', error);
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, nom, telephone, email, role, pointVenteId, ville, profil, active } = body;
+    const { id, nom, login, telephone, email, role, pointVenteId, ville, profil, active, motDePasse } = body;
 
     if (!id) return NextResponse.json({ success: false, error: 'ID requis' }, { status: 400 });
 
@@ -68,6 +68,7 @@ export async function PATCH(req: NextRequest) {
       where: { id: parseInt(id) },
       data: {
         ...(nom !== undefined && { nom }),
+        ...(login !== undefined && login.trim() !== '' && { login: login.trim() }),
         ...(telephone !== undefined && { telephone }),
         ...(email !== undefined && { email }),
         ...(role !== undefined && { role }),
@@ -75,17 +76,21 @@ export async function PATCH(req: NextRequest) {
         ...(ville !== undefined && { ville }),
         ...(profil !== undefined && { profil }),
         ...(active !== undefined && { active }),
+        ...(motDePasse !== undefined && motDePasse.trim() !== '' && { motDePasse: motDePasse.trim() }),
       },
       include: {
         pointVenteDefaut: { select: { id: true, nom: true, codeBoutique: true, ville: true } },
       },
     });
 
-    const { motDePasse, ...safe } = updated;
+    const { motDePasse: _, ...safe } = updated;
     return NextResponse.json({ success: true, user: safe });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Erreur API Users PATCH:', error);
-    return NextResponse.json({ success: false, error: 'Erreur mise à jour utilisateur' }, { status: 500 });
+    const msg = error instanceof Error && (error as NodeJS.ErrnoException).code === 'P2002'
+      ? 'Ce login ou téléphone est déjà utilisé par un autre compte'
+      : 'Erreur mise à jour utilisateur';
+    return NextResponse.json({ success: false, error: msg }, { status: 500 });
   }
 }
 

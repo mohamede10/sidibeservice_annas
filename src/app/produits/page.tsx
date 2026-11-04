@@ -23,6 +23,10 @@ import {
   ShieldAlert,
   Lock,
   Store,
+  Truck,
+  Receipt,
+  ShoppingCart,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
@@ -50,6 +54,10 @@ interface Produit {
   categorieNom?: string;
   dateAjout: string;
   variantes: Variante[];
+  totalStock?: number;
+  totalVendu?: number;
+  totalAjoute?: number;
+  statsParBoutique?: Record<number, { stock: number; vendu: number; ajoute: number }>;
 }
 
 export default function ProduitsPage() {
@@ -455,33 +463,47 @@ export default function ProduitsPage() {
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-900/90 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
               <tr>
-                <th className="px-6 py-4">Produit & Réf</th>
-                <th className="px-6 py-4">Catégorie</th>
-                <th className="px-6 py-4">Variante(s)</th>
-                <th className="px-6 py-4">Prix de Vente</th>
-                <th className="px-6 py-4">
+                <th className="px-5 py-4">Produit & Réf</th>
+                <th className="px-4 py-4">Catégorie</th>
+                <th className="px-4 py-4">Prix de Vente</th>
+                <th className="px-4 py-4 text-center">
+                  <span className="text-sky-400 inline-flex items-center gap-1.5 font-bold">
+                    <Truck className="w-3.5 h-3.5" />
+                    Stocks Arrivés
+                  </span>
+                </th>
+                <th className="px-4 py-4 text-center">
+                  <span className="text-amber-400 inline-flex items-center gap-1.5 font-bold">
+                    <Receipt className="w-3.5 h-3.5" />
+                    Qté Vendue
+                  </span>
+                </th>
+                <th className="px-4 py-4 text-center">
                   {selectedPointDeVente ? (
-                    <span className="text-amber-400 flex items-center gap-1.5">
+                    <span className="text-emerald-400 inline-flex items-center gap-1.5 font-bold">
                       <Store className="w-3.5 h-3.5" />
-                      Stock {pointsDeVente.find((p) => p.id === selectedPointDeVente)?.nom || 'Boutique'}
+                      Stock Restant ({pointsDeVente.find((p) => p.id === selectedPointDeVente)?.codeBoutique || 'Boutique'})
                     </span>
                   ) : (
-                    'Stock Global'
+                    <span className="text-emerald-400 inline-flex items-center gap-1.5 font-bold">
+                      <Package className="w-3.5 h-3.5" />
+                      Stock Restant
+                    </span>
                   )}
                 </th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 text-slate-300">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     Chargement du catalogue...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
                     Aucun article trouvé.
                   </td>
                 </tr>
@@ -490,28 +512,33 @@ export default function ProduitsPage() {
                   const mainVar = p.variantes[0];
                   const totalStock = p.variantes.reduce((sum, v) => sum + v.quantiteStock, 0);
 
-                  // Calcul du stock pour la boutique sélectionnée (si filtre activé)
-                  const boutiqueStock = selectedPointDeVente
-                    ? p.variantes.reduce((sum, v) => {
-                        const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === selectedPointDeVente);
-                        return sum + (sp ? sp.quantite : 0);
-                      }, 0)
-                    : totalStock;
+                  // Calcul selon la boutique filtrée ou global
+                  const boutiqueStats = selectedPointDeVente ? p.statsParBoutique?.[selectedPointDeVente] : null;
 
-                  const displayStock = selectedPointDeVente ? boutiqueStock : totalStock;
+                  const qteVendue = boutiqueStats ? boutiqueStats.vendu : (p.totalVendu ?? 0);
+                  const displayStock = boutiqueStats
+                    ? boutiqueStats.stock
+                    : (selectedPointDeVente
+                        ? p.variantes.reduce((sum, v) => {
+                            const sp = v.stocksParPoint?.find((s) => s.pointDeVenteId === selectedPointDeVente);
+                            return sum + (sp ? sp.quantite : 0);
+                          }, 0)
+                        : totalStock);
+                  const qteAjoutee = boutiqueStats ? boutiqueStats.ajoute : (p.totalAjoute ?? (displayStock + qteVendue));
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-6 py-4">
+                      {/* 1. Produit & Réf */}
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           {p.imageUrl ? (
                             <img
                               src={p.imageUrl}
                               alt={p.nom}
-                              className="w-11 h-11 rounded-xl object-cover border border-slate-700 flex-shrink-0"
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-700 flex-shrink-0"
                             />
                           ) : (
-                            <div className="w-11 h-11 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-500 flex-shrink-0">
+                            <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-500 flex-shrink-0">
                               <ImageIcon className="w-5 h-5 opacity-40" />
                             </div>
                           )}
@@ -523,59 +550,68 @@ export default function ProduitsPage() {
                               {p.nom}
                             </p>
                             <p className="text-xs text-slate-400 mt-0.5">Réf: {p.ref || `PRD-${p.id}`}</p>
+                            {mainVar && (
+                              <p className="text-[11px] text-slate-500">
+                                {mainVar.taille || 'Standard'} • {mainVar.couleur || 'Classique'}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 rounded-full bg-slate-800 text-amber-400 font-semibold text-xs">
-                          {p.categorieNom || 'Mode'}
+
+                      {/* 2. Catégorie */}
+                      <td className="px-4 py-4">
+                        <span className="px-2.5 py-1 rounded-full bg-slate-800 text-amber-400 font-semibold text-xs whitespace-nowrap">
+                          {p.categorieNom || 'Général'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-slate-300">
-                        {p.variantes.map((v) => {
-                          const varBoutiqueStock = selectedPointDeVente
-                            ? v.stocksParPoint?.find((s) => s.pointDeVenteId === selectedPointDeVente)?.quantite ?? 0
-                            : v.quantiteStock;
 
-                          return (
-                            <span
-                              key={v.id}
-                              className={`inline-block mr-1 mb-1 px-2 py-0.5 rounded border text-[11px] ${selectedPointDeVente
-                                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                                  : 'bg-slate-900 border-slate-700 text-slate-300'
-                                }`}
-                            >
-                              {v.taille || 'Std'} / {v.couleur || 'Classique'} :{' '}
-                              <strong className={varBoutiqueStock <= 5 ? 'text-rose-400' : 'text-emerald-400'}>
-                                {varBoutiqueStock}
-                              </strong>
-                            </span>
-                          );
-                        })}
-                      </td>
-                      <td className="px-6 py-4 font-black text-amber-400">
+                      {/* 3. Prix de vente */}
+                      <td className="px-4 py-4 font-black text-amber-400 whitespace-nowrap">
                         {formatCurrency(mainVar?.prix || 0)}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1">
+
+                      {/* 4. Quantité Ajoutée / Stocks Arrivés (Entrées / Approvisionnements) */}
+                      <td className="px-4 py-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                          <Truck className="w-3.5 h-3.5" />
+                          {qteAjoutee} arrivé{qteAjoutee > 1 ? 's' : ''}
+                        </span>
+                      </td>
+
+                      {/* 5. Quantité Vendue (Sorties) */}
+                      <td className="px-4 py-4 text-center">
+                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                          <Receipt className="w-3.5 h-3.5" />
+                          {qteVendue} vendue{qteVendue > 1 ? 's' : ''}
+                        </span>
+                      </td>
+
+                      {/* 6. Stock Restant / Disponible */}
+                      <td className="px-4 py-4 text-center">
+                        <div className="space-y-0.5">
                           <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${displayStock > 5
+                            className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black ${
+                              displayStock > 5
                                 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                 : displayStock > 0
                                   ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                                   : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                              }`}
+                            }`}
                           >
-                            {displayStock} unité{displayStock > 1 ? 's' : ''}
+                            <Package className="w-3.5 h-3.5" />
+                            {displayStock} restant{displayStock > 1 ? 's' : ''}
                           </span>
                           {selectedPointDeVente && (
-                            <p className="text-[11px] text-slate-500">
-                              (Réseau global: {totalStock})
+                            <p className="text-[10px] text-slate-500">
+                              (Réseau total: {totalStock})
                             </p>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
+
+                      {/* 7. Actions */}
+                      <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Bouton Voir Détails (Accessible à tous) */}
                           <button
@@ -1114,6 +1150,28 @@ export default function ProduitsPage() {
           <p className="text-xs text-slate-300">
             {selectedProduct?.description || 'Aucune description spécifique renseignée.'}
           </p>
+
+          {/* Synthèse globale entrées/sorties/stock */}
+          <div className="grid grid-cols-3 gap-2.5 p-3.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-center">
+            <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+              <p className="text-[10px] text-sky-300 font-bold uppercase tracking-wider">Stocks Arrivés</p>
+              <p className="text-base font-black text-sky-400 mt-0.5">
+                {selectedProduct?.totalAjoute ?? ((selectedProduct?.totalStock ?? 0) + (selectedProduct?.totalVendu ?? 0))}
+              </p>
+            </div>
+            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20">
+              <p className="text-[10px] text-amber-300 font-bold uppercase tracking-wider">Total Vendu</p>
+              <p className="text-base font-black text-amber-400 mt-0.5">
+                {selectedProduct?.totalVendu ?? 0}
+              </p>
+            </div>
+            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+              <p className="text-[10px] text-emerald-300 font-bold uppercase tracking-wider">Stock Restant</p>
+              <p className="text-base font-black text-emerald-400 mt-0.5">
+                {selectedProduct?.totalStock ?? selectedProduct?.variantes.reduce((s, v) => s + v.quantiteStock, 0)}
+              </p>
+            </div>
+          </div>
 
           <h4 className="font-bold text-xs text-amber-400 uppercase tracking-wider">
             Variantes & Stocks Disponibles

@@ -151,7 +151,7 @@ export default function PWAInstallPrompt() {
                 <div className="relative flex-shrink-0 w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-lg shadow-amber-500/25">
                   <div className="w-full h-full bg-[#0a0f1d] rounded-[14px] flex items-center justify-center overflow-hidden">
                     <img
-                      src="/img/logo.png"
+                      src="/img/logo.jpeg"
                       alt="Logo Sidibe Multi-Services"
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -245,7 +245,7 @@ export default function PWAInstallPrompt() {
                 <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 mx-auto mb-3 shadow-xl shadow-amber-500/20">
                   <div className="w-full h-full bg-[#0a0f1d] rounded-[22px] flex items-center justify-center overflow-hidden">
                     <img
-                      src="/img/logo.png"
+                      src="/img/logo.jpeg"
                       alt="Logo Sidibe Multi-Services"
                       className="w-full h-full object-cover"
                       onError={(e) => {
