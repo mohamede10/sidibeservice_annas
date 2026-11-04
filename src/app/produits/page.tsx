@@ -70,6 +70,7 @@ export default function ProduitsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [priceFilter, setPriceFilter] = useState('');
+  const [priceFilterMode, setPriceFilterMode] = useState<'exact' | 'max' | 'min'>('exact');
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [selectedPointDeVente, setSelectedPointDeVente] = useState<number | null>(null);
 
@@ -347,17 +348,45 @@ export default function ProduitsPage() {
   const effectiveBoutique = pointsDeVente.find((p) => p.id === effectivePointDeVenteId);
 
   const filtered = produits.filter((p) => {
+    const term = searchTerm.trim().toLowerCase();
+    const termClean = term.replace(/\s+/g, '');
+    const termNum = parseFloat(termClean);
+
     const matchSearch =
-      !searchTerm ||
-      p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.ref && p.ref.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.categorieNom && p.categorieNom.toLowerCase().includes(searchTerm.toLowerCase()));
+      !term ||
+      p.nom.toLowerCase().includes(term) ||
+      (p.ref && p.ref.toLowerCase().includes(term)) ||
+      (p.categorieNom && p.categorieNom.toLowerCase().includes(term)) ||
+      // Recherche directe par prix dans la barre de recherche (ex: "50000" ou "50 000")
+      p.variantes.some((v) => {
+        const pStr = String(v.prix);
+        const pRound = String(Math.round(v.prix));
+        return (
+          pStr.includes(termClean) ||
+          pRound.includes(termClean) ||
+          (!isNaN(termNum) && v.prix === termNum)
+        );
+      });
 
     const matchCategory = selectedCategory ? p.categorieId === selectedCategory : true;
 
-    // Filtre par prix max (sur la variante principale)
-    const matchPrice = !priceFilter ||
-      (p.variantes[0]?.prix ?? 0) <= parseFloat(priceFilter);
+    // Filtre dédié par prix (Exact, Max ou Min)
+    let matchPrice = true;
+    if (priceFilter.trim()) {
+      const pVal = parseFloat(priceFilter.replace(/\s+/g, ''));
+      if (!isNaN(pVal)) {
+        if (priceFilterMode === 'exact') {
+          matchPrice = p.variantes.some((v) =>
+            Math.abs(v.prix - pVal) < 1 ||
+            String(Math.round(v.prix)).includes(String(Math.round(pVal)))
+          );
+        } else if (priceFilterMode === 'max') {
+          matchPrice = p.variantes.some((v) => v.prix <= pVal);
+        } else if (priceFilterMode === 'min') {
+          matchPrice = p.variantes.some((v) => v.prix >= pVal);
+        }
+      }
+    }
 
     // Filtre strict par boutique :
     // Chaque boutique doit voir UNIQUEMENT ses propres produits (ayant du stock ou des mouvements dans cette boutique)
@@ -436,28 +465,60 @@ export default function ProduitsPage() {
       {/* Filter Bar */}
       <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-          {/* Recherche par nom / référence */}
+          {/* Recherche par nom / référence / catégorie / prix */}
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Rechercher par nom, référence ou catégorie..."
+              placeholder="Rechercher par nom, réf, catégorie ou prix (ex: 25000)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+              className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
             />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                title="Effacer la recherche"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          {/* Filtre par Prix Max */}
-          <div className="relative">
-            <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
-            <input
-              type="number"
-              placeholder="Prix max (GNF)..."
-              value={priceFilter}
-              onChange={(e) => setPriceFilter(e.target.value)}
-              className="pl-9 pr-4 py-2.5 w-44 rounded-xl bg-slate-900 border border-slate-700 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
-            />
+          {/* Filtre dédié par Prix */}
+          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl p-1 shadow-sm">
+            <div className="relative">
+              <Tag className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-amber-400 pointer-events-none" />
+              <input
+                type="number"
+                placeholder="Prix (GNF)..."
+                value={priceFilter}
+                onChange={(e) => setPriceFilter(e.target.value)}
+                className="pl-8 pr-2 py-1.5 w-32 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+            <select
+              value={priceFilterMode}
+              onChange={(e) => setPriceFilterMode(e.target.value as 'exact' | 'max' | 'min')}
+              className="py-1.5 px-2 rounded-lg bg-slate-950 border border-slate-800 text-xs font-semibold text-amber-300 focus:outline-none focus:border-amber-400 cursor-pointer"
+              title="Mode de comparaison du prix"
+            >
+              <option value="exact">= Exact</option>
+              <option value="max">≤ Prix Max</option>
+              <option value="min">≥ Prix Min</option>
+            </select>
+            {priceFilter && (
+              <button
+                type="button"
+                onClick={() => setPriceFilter('')}
+                className="p-1 text-slate-400 hover:text-white"
+                title="Effacer le filtre prix"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Filtre par Boutique — visible UNIQUEMENT pour Admin et Gérant */}

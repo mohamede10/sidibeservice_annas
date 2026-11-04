@@ -171,10 +171,25 @@ export default function PosPage() {
 
   // Filtered Products (stricte séparation par boutique pour la vente)
   const filteredProducts = produits.filter((p) => {
+    const term = searchTerm.trim().toLowerCase();
+    const termClean = term.replace(/\s+/g, '');
+    const termNum = parseFloat(termClean);
+
     const matchSearch =
-      p.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.ref && p.ref.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.categorieNom && p.categorieNom.toLowerCase().includes(searchTerm.toLowerCase()));
+      !term ||
+      p.nom.toLowerCase().includes(term) ||
+      (p.ref && p.ref.toLowerCase().includes(term)) ||
+      (p.categorieNom && p.categorieNom.toLowerCase().includes(term)) ||
+      // Recherche directe par prix dans la caisse POS (ex: "50000" ou "50 000")
+      p.variantes.some((v) => {
+        const pStr = String(v.prix);
+        const pRound = String(Math.round(v.prix));
+        return (
+          pStr.includes(termClean) ||
+          pRound.includes(termClean) ||
+          (!isNaN(termNum) && v.prix === termNum)
+        );
+      });
 
     const matchCategory = selectedCategory ? p.categorieId === selectedCategory : true;
 
@@ -455,7 +470,7 @@ export default function PosPage() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Scanner ou rechercher un produit (nom, réf, catégorie)..."
+                placeholder="Scanner ou rechercher un produit (nom, réf, catégorie, prix)..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-400"
               />
               {searchTerm && (
