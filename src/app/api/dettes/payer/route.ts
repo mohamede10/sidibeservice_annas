@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { clientId, montant, modePaiement = 'ESPECES', notes = '', venteId } = body;
+    const { clientId, montant, modePaiement = 'ESPECES', notes = '', venteId, recuParId } = body;
 
     if (!clientId || !montant || parseFloat(String(montant)) <= 0) {
       return NextResponse.json({ success: false, error: 'Montant ou client invalide' }, { status: 400 });
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const refRecu = `REC-${Date.now().toString().slice(-6)}`;
 
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Décrémenter le solde de dette du client
+      // 1. Récupérer le client
       const client = await tx.client.findUnique({
         where: { id: parseInt(String(clientId)) },
       });
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
         throw new Error('Client introuvable');
       }
 
+      // 2. Décrémenter le solde de dette global du client
       const nouveauSolde = Math.max(0, client.soldeDette - payeMontant);
 
       await tx.client.update({
@@ -30,39 +31,78 @@ export async function POST(request: NextRequest) {
         data: { soldeDette: nouveauSolde },
       });
 
-      // 2. Enregistrer le paiement
-      const paiement = await tx.paiementDette.create({
-        data: {
+      // 3. Imputer automatiquement le remboursement sur les factures/ventes impayées du client
+      let resteAImputer = payeMontant;
+      let primaryVenteId: number | undefined = venteId ? parseInt(String(venteId)) : undefined;
+
+      // Récupérer les ventes impayées ou partielles du client (ordonnées par date croissante)
+      const ventesImpayees = await tx.vente.findMany({
+        where: {
           clientId: client.id,
-          venteId: venteId ? parseInt(String(venteId)) : undefined,
-          montant: payeMontant,
-          modePaiement: modePaiement,
-          referenceRecu: refRecu,
-          notes: notes || `Règlement dette / acompte client ${client.nom}`,
+          typeVente: { not: 'COMMANDE_EN_LIGNE' },
+          montantRestant: { gt: 0 },
         },
+        orderBy: { dateVente: 'asc' },
+        include: { factures: true },
       });
 
-      // 3. Mettre à jour la vente si venteId est fourni
-      if (venteId) {
-        const vente = await tx.vente.findUnique({
-          where: { id: parseInt(String(venteId)) },
+      // Si une vente spécifique était ciblée, la traiter en priorité
+      let ventesATraiter = [...ventesImpayees];
+      if (primaryVenteId) {
+        const targetedIndex = ventesATraiter.findIndex((v) => v.id === primaryVenteId);
+        if (targetedIndex > -1) {
+          const targeted = ventesATraiter.splice(targetedIndex, 1)[0];
+          ventesATraiter = [targeted, ...ventesATraiter];
+        }
+      }
+
+      // Répartition du montant payé sur chaque vente
+      for (const v of ventesATraiter) {
+        if (resteAImputer <= 0) break;
+
+        if (!primaryVenteId) {
+          primaryVenteId = v.id;
+        }
+
+        const montantSurCetteVente = Math.min(resteAImputer, v.montantRestant);
+        const nouveauPaye = v.montantPaye + montantSurCetteVente;
+        const nouveauRestant = Math.max(0, v.total - nouveauPaye);
+        const nouveauStatut = nouveauRestant <= 0 ? 'PAYE' : 'PARTIEL';
+
+        await tx.vente.update({
+          where: { id: v.id },
+          data: {
+            montantPaye: nouveauPaye,
+            montantRestant: nouveauRestant,
+            statutPaiement: nouveauStatut,
+          },
         });
 
-        if (vente) {
-          const nouveauPaye = vente.montantPaye + payeMontant;
-          const nouveauRestant = Math.max(0, vente.total - nouveauPaye);
-          const statut = nouveauRestant <= 0 ? 'PAYE' : 'PARTIEL';
-
-          await tx.vente.update({
-            where: { id: vente.id },
+        // Mettre à jour les factures associées
+        if (v.factures && v.factures.length > 0) {
+          await tx.facture.updateMany({
+            where: { venteId: v.id },
             data: {
-              montantPaye: nouveauPaye,
-              montantRestant: nouveauRestant,
-              statutPaiement: statut,
+              statut: nouveauRestant <= 0 ? 'PAYEE' : 'IMPAYEE',
             },
           });
         }
+
+        resteAImputer -= montantSurCetteVente;
       }
+
+      // 4. Enregistrer la trace comptable dans paiements_dette
+      const paiement = await tx.paiementDette.create({
+        data: {
+          clientId: client.id,
+          venteId: primaryVenteId || undefined,
+          montant: payeMontant,
+          modePaiement: modePaiement,
+          referenceRecu: refRecu,
+          recuParId: recuParId ? parseInt(String(recuParId)) : undefined,
+          notes: notes || `Remboursement dette / acompte client ${client.nom}`,
+        },
+      });
 
       return { paiement, client, nouveauSolde };
     });

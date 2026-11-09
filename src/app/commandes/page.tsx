@@ -211,14 +211,15 @@ export default function CommandesPage() {
       dateFacture: commande.dateVente,
       boutique: {
         nom: commande.pointVente?.nom || commande.pointVenteNom || 'Sidibe Services',
-        ville: commande.pointVente?.ville || notes.ville || 'Kankan',
+        ville: commande.pointVente?.ville || notes.ville || 'Guinée',
         adresse: 'Centre Commercial',
         telephone: '+224 622 48 81 61',
       },
       client: {
         nom: commande.client?.nom || commande.nomClient || 'Client',
         telephone: commande.client?.telephone || commande.telephoneClient || '',
-        adresse: commande.client?.adresse || notes.adresse || notes.ville || 'Kankan',
+        adresse: commande.client?.adresse || notes.adresse || '',
+        ville: commande.client?.ville || notes.ville || commande.pointVente?.ville || 'Guinée',
       },
       lignes: commande.lignes.map((l) => ({
         designation: l.nomProduit,
@@ -243,14 +244,15 @@ export default function CommandesPage() {
       dateFacture: commande.dateVente,
       boutique: {
         nom: commande.pointVente?.nom || commande.pointVenteNom || 'Sidibe Services',
-        ville: commande.pointVente?.ville || notes.ville || 'Kankan',
+        ville: commande.pointVente?.ville || notes.ville || 'Guinée',
         adresse: 'Centre Commercial',
         telephone: '+224 622 48 81 61',
       },
       client: {
         nom: commande.client?.nom || commande.nomClient || 'Client',
         telephone: commande.client?.telephone || commande.telephoneClient || '',
-        adresse: commande.client?.adresse || notes.adresse || 'Kankan',
+        adresse: commande.client?.adresse || notes.adresse || '',
+        ville: commande.client?.ville || notes.ville || commande.pointVente?.ville || 'Guinée',
       },
       lignes: commande.lignes.map((l) => ({
         designation: l.nomProduit,

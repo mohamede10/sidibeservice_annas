@@ -36,10 +36,10 @@ export async function POST(request: NextRequest) {
     const numeroFacture = `FAC-${Date.now().toString().slice(-6)}`;
     const pvId = parseInt(String(pointVenteId)) || 1;
 
-    // Récupérer le nom du point de vente
+    // Récupérer le point de vente avec tous ses détails d'adresse et ville
     const pdv = await prisma.pointDeVente.findUnique({
       where: { id: pvId },
-      select: { nom: true, ville: true },
+      select: { id: true, nom: true, codeBoutique: true, ville: true, adresse: true, telephone: true },
     });
 
     // Exécution transactionnelle
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
               telephone: telephoneClient ? telephoneClient.trim() : '',
               adresse: adresseClient ? adresseClient.trim() : '',
               email: emailClient ? emailClient.trim() : '',
-              ville: pdv?.ville || 'Kankan',
+              ville: pdv?.ville || 'Guinée',
               soldeDette: 0,
             },
           });
@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
         include: {
           lignes: true,
           client: true,
+          pointVente: true,
         },
       });
 
@@ -225,6 +226,7 @@ export async function POST(request: NextRequest) {
       success: true,
       vente: result.vente,
       facture: result.facture,
+      pointDeVente: pdv,
       message: 'Vente validée avec succès',
     });
   } catch (error) {

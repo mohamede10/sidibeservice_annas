@@ -4,6 +4,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { emitToast } from '@/contexts/ToastContext';
+import { SIDIBE_LOGO_BASE64 } from './logoBase64';
 
 export interface InvoiceData {
   numeroFacture: string;
@@ -38,10 +39,15 @@ export interface InvoiceData {
 }
 
 /**
- * Formate un montant en GNF
+ * Formate un montant en GNF avec des espaces simples comme séparateurs de milliers
+ * Évite les slashs "/" et caractères incompatibles dans les polices et imprimantes
  */
-export function formatGNF(montant: number): string {
-  return new Intl.NumberFormat('fr-FR').format(Math.round(montant)) + ' GNF';
+export function formatGNF(montant: number | string | null | undefined): string {
+  const num = typeof montant === 'number' ? montant : parseFloat(String(montant || 0));
+  if (isNaN(num)) return '0 GNF';
+  const rounded = Math.round(num);
+  const formatted = rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${formatted} GNF`;
 }
 
 /**
@@ -62,31 +68,43 @@ export function generateInvoicePdfDoc(data: InvoiceData): jsPDF {
   doc.setFillColor(217, 119, 6);
   doc.rect(marginX, 12, usableWidth, 2, 'F');
 
-  // 2. En-tête : Marque & Coordonnées
-  let currentY = 22;
+  // 2. En-tête : Logo & Marque & Coordonnées
+  let currentY = 20;
+
+  // Intégration du logo Sidibé Services
+  try {
+    doc.addImage(SIDIBE_LOGO_BASE64, 'JPEG', marginX, 15.5, 17, 17);
+  } catch {
+    // Si l'image n'est pas disponible, on continue sans bloquer
+  }
+
+  const textStartX = marginX + 20;
+
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  doc.setFontSize(15);
   doc.setTextColor(15, 23, 42); // Slate 900
-  doc.text('SIDIBE', marginX, currentY);
+  doc.text('SIDIBE', textStartX, currentY);
 
   const sidibeWidth = doc.getTextWidth('SIDIBE ');
   doc.setTextColor(217, 119, 6); // Ambre / Or
-  doc.text('MULTI-SERVICES', marginX + sidibeWidth, currentY);
+  doc.text('SERVICES', textStartX + sidibeWidth, currentY);
 
-  currentY += 5;
+  currentY += 4.5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(100, 116, 139); // Slate 500
-  doc.text("Décoration d'Intérieur • Tapis de Luxe • Rideaux • Linge de Lit", marginX, currentY);
+  doc.text("Décoration d'Intérieur • Tapis de Luxe • Rideaux • Panneaux Muraux", textStartX, currentY);
 
-  currentY += 4.5;
-  doc.setFontSize(8.5);
+  currentY += 4;
+  doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  const boutiqueInfo = `Boutique : ${data.boutique.nom}${data.boutique.codeBoutique ? ` (${data.boutique.codeBoutique})` : ''} • ${data.boutique.adresse || 'Centre Commercial'} • ${data.boutique.ville || 'Kankan'}`;
-  doc.text(boutiqueInfo, marginX, currentY);
+  const boutiqueVille = data.boutique.ville || 'Guinée';
+  const boutiqueAdresse = data.boutique.adresse ? `${data.boutique.adresse} • ` : '';
+  const boutiqueInfo = `Boutique : ${data.boutique.nom}${data.boutique.codeBoutique ? ` (${data.boutique.codeBoutique})` : ''} • ${boutiqueAdresse}${boutiqueVille}`;
+  doc.text(boutiqueInfo, textStartX, currentY);
 
-  currentY += 4.5;
-  doc.text(`Tél : ${data.boutique.telephone || '+224 622 48 81 61'}`, marginX, currentY);
+  currentY += 4;
+  doc.text(`Tél : ${data.boutique.telephone || '+224 622 48 81 61'}`, textStartX, currentY);
 
   // 3. Encadré d'identification de facture (Côté droit)
   const isPaid = data.montantRestant <= 0;
@@ -105,16 +123,16 @@ export function generateInvoicePdfDoc(data: InvoiceData): jsPDF {
     doc.setDrawColor(253, 230, 138);
     doc.setTextColor(146, 64, 14); // Ambre foncé
   }
-  doc.roundedRect(rightBoxX, 18, badgeWidth, badgeHeight, 1.5, 1.5, 'FD');
+  doc.roundedRect(rightBoxX, 16.5, badgeWidth, badgeHeight, 1.5, 1.5, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
-  doc.text(badgeText, rightBoxX + badgeWidth / 2, 22.5, { align: 'center' });
+  doc.text(badgeText, rightBoxX + badgeWidth / 2, 21, { align: 'center' });
 
   // Numéro de facture
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
-  doc.text(data.numeroFacture, pageWidth - marginX, 31, { align: 'right' });
+  doc.text(data.numeroFacture, pageWidth - marginX, 29.5, { align: 'right' });
 
   // Date et Référence
   doc.setFont('helvetica', 'normal');
@@ -127,11 +145,11 @@ export function generateInvoicePdfDoc(data: InvoiceData): jsPDF {
     hour: '2-digit',
     minute: '2-digit',
   });
-  doc.text(`Date : ${dateStr}`, pageWidth - marginX, 36, { align: 'right' });
-  doc.text(`Réf. Vente : ${data.referenceVente}`, pageWidth - marginX, 40.5, { align: 'right' });
+  doc.text(`Date : ${dateStr}`, pageWidth - marginX, 34.5, { align: 'right' });
+  doc.text(`Réf. Vente : ${data.referenceVente}`, pageWidth - marginX, 39, { align: 'right' });
 
   // Ligne de séparation
-  currentY = 46;
+  currentY = 44;
   doc.setDrawColor(226, 232, 240); // Slate 200
   doc.setLineWidth(0.3);
   doc.line(marginX, currentY, pageWidth - marginX, currentY);
@@ -149,7 +167,7 @@ export function generateInvoicePdfDoc(data: InvoiceData): jsPDF {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(148, 163, 184); // Slate 400
-  doc.text('ÉMISE PAR (VENDEUR)', marginX + 4, currentY + 5);
+  doc.text('ÉMISE PAR (BOUTIQUE VENDEUSE)', marginX + 4, currentY + 5);
 
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
@@ -158,11 +176,9 @@ export function generateInvoicePdfDoc(data: InvoiceData): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Ville : ${data.boutique.ville || 'Kankan'}`, marginX + 4, currentY + 15);
-  doc.text(`Contact : ${data.boutique.telephone || '+224 622 48 81 61'}`, marginX + 4, currentY + 19.5);
-  if (data.vendeurNom) {
-    doc.text(`Servi par : ${data.vendeurNom}`, marginX + 4, currentY + 24);
-  }
+  doc.text(`Ville : ${boutiqueVille}`, marginX + 4, currentY + 15);
+  doc.text(`Adresse : ${data.boutique.adresse || 'Quartier Commercial'}`, marginX + 4, currentY + 19.5);
+  doc.text(`Contact : ${data.boutique.telephone || '+224 622 48 81 61'}`, marginX + 4, currentY + 24);
 
   // Box Client
   const clientBoxX = marginX + colWidth + 8;
@@ -182,10 +198,13 @@ export function generateInvoicePdfDoc(data: InvoiceData): jsPDF {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
+  const clientVille = data.client.ville || boutiqueVille;
   doc.text(`Tél : ${data.client.telephone || 'Non renseigné'}`, clientBoxX + 4, currentY + 15);
-  doc.text(`Adresse : ${data.client.adresse || 'Kankan'} • ${data.client.ville || 'Kankan'}`, clientBoxX + 4, currentY + 19.5);
-  if (data.client.email) {
-    doc.text(`Email : ${data.client.email}`, clientBoxX + 4, currentY + 24);
+  doc.text(`Ville : ${clientVille}`, clientBoxX + 4, currentY + 19.5);
+  if (data.client.adresse) {
+    doc.text(`Adresse : ${data.client.adresse}`, clientBoxX + 4, currentY + 24);
+  } else if (data.vendeurNom) {
+    doc.text(`Servi par : ${data.vendeurNom}`, clientBoxX + 4, currentY + 24);
   }
 
   // 5. Tableau des articles avec jspdf-autotable
@@ -424,73 +443,81 @@ export function printInvoice(data: InvoiceData) {
     return;
   }
 
+  const bVille = data.boutique.ville || 'Guinée';
+  const cVille = data.client.ville || bVille;
+
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Facture ${data.numeroFacture} - Sidibe Multi-Services</title>
+  <title>Facture ${data.numeroFacture} - Sidibe Services</title>
   <style>
-    @page { size: A4; margin: 15mm; }
+    @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
     body { background: #fff; color: #1e293b; padding: 20px; font-size: 13px; line-height: 1.5; }
-    .invoice-card { max-width: 800px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; padding: 30px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f59e0b; padding-bottom: 20px; margin-bottom: 25px; }
-    .logo-area h1 { font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+    .invoice-card { max-width: 820px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f59e0b; padding-bottom: 18px; margin-bottom: 22px; }
+    .logo-area { display: flex; align-items: center; gap: 14px; }
+    .brand-logo { width: 54px; height: 54px; border-radius: 12px; object-fit: cover; border: 1.5px solid #d97706; }
+    .logo-area h1 { font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
     .logo-area span { color: #d97706; }
-    .logo-area p { color: #64748b; font-size: 12px; margin-top: 3px; }
+    .logo-area p { color: #64748b; font-size: 11.5px; margin-top: 2px; }
     .invoice-meta { text-align: right; }
     .invoice-badge { display: inline-block; background: #fef3c7; color: #92400e; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; margin-bottom: 6px; }
-    .invoice-number { font-size: 18px; font-weight: 800; color: #0f172a; }
-    .meta-date { font-size: 12px; color: #64748b; }
+    .invoice-badge.paid { background: #dcfce7; color: #166534; }
+    .invoice-number { font-size: 17px; font-weight: 800; color: #0f172a; }
+    .meta-date { font-size: 11.5px; color: #64748b; margin-top: 2px; }
     
-    .parties-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
-    .party-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; }
-    .party-title { font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .parties-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+    .party-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .party-title { font-size: 10.5px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
     .party-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
-    .party-info { font-size: 12px; color: #475569; line-height: 1.4; }
+    .party-info { font-size: 11.5px; color: #475569; line-height: 1.45; }
 
-    table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
-    th { background: #0f172a; color: #fff; text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 22px; }
+    th { background: #0f172a; color: #fff; text-align: left; padding: 9px 12px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; }
     th:last-child { text-align: right; }
-    td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #334155; }
+    td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #334155; }
     td:last-child { text-align: right; font-weight: 700; }
     tr:nth-child(even) { background: #f8fafc; }
 
-    .totals-area { display: flex; justify-content: flex-end; margin-bottom: 30px; }
-    .totals-table { width: 320px; }
-    .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: #475569; }
-    .totals-row.grand-total { border-top: 2px solid #0f172a; padding-top: 10px; margin-top: 6px; font-size: 16px; font-weight: 900; color: #0f172a; }
+    .totals-area { display: flex; justify-content: flex-end; margin-bottom: 26px; }
+    .totals-table { width: 330px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12.5px; color: #475569; }
+    .totals-row.grand-total { border-top: 2px solid #0f172a; padding-top: 8px; margin-top: 6px; font-size: 15px; font-weight: 900; color: #0f172a; }
     .totals-row.paid { color: #16a34a; font-weight: 700; }
     .totals-row.rest { color: #dc2626; font-weight: 800; }
 
-    .footer { border-top: 1px dashed #cbd5e1; padding-top: 20px; text-align: center; color: #64748b; font-size: 11px; }
-    .footer p { margin-bottom: 4px; }
-    .orange-money-box { margin-top: 15px; padding: 10px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 6px; display: inline-block; font-size: 12px; color: #c2410c; font-weight: 700; }
+    .footer { border-top: 1px dashed #cbd5e1; padding-top: 18px; text-align: center; color: #64748b; font-size: 11px; }
+    .footer p { margin-bottom: 3px; }
+    .orange-money-box { margin-top: 12px; padding: 8px 14px; background: #fff7ed; border: 1px solid #ffedd5; border-radius: 6px; display: inline-block; font-size: 11.5px; color: #c2410c; font-weight: 700; }
 
     @media print {
-      body { padding: 0; }
-      .invoice-card { border: none; padding: 0; }
+      body { padding: 0; background: #fff; }
+      .invoice-card { border: none; padding: 0; box-shadow: none; }
       .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="no-print" style="margin-bottom: 20px; text-align: right;">
-    <button onclick="window.print()" style="background: #d97706; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px;">🖨️ Imprimer / Enregistrer en PDF</button>
+  <div class="no-print" style="margin-bottom: 16px; text-align: right;">
+    <button onclick="window.print()" style="background: #d97706; color: white; border: none; padding: 10px 22px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Imprimer la Facture</button>
   </div>
 
   <div class="invoice-card">
     <div class="header">
       <div class="logo-area">
-        <h1>SIDIBE <span>MULTI-SERVICES</span></h1>
-        <p>Décoration d'Intérieur • Tapis de Luxe • Rideaux • Linge de Lit</p>
-        <p><strong>Boutique :</strong> ${data.boutique.nom} ${data.boutique.codeBoutique ? `(${data.boutique.codeBoutique})` : ''}</p>
-        <p>${data.boutique.adresse || 'Centre Commercial'} • ${data.boutique.ville || 'Kankan'}</p>
-        <p>Tél : ${data.boutique.telephone || '+224 622 48 81 61'}</p>
+        <img src="/img/logo.jpeg" alt="Logo Sidibé Services" class="brand-logo" onerror="this.style.display='none'" />
+        <div>
+          <h1>SIDIBE <span>SERVICES</span></h1>
+          <p>Décoration d'Intérieur • Tapis de Luxe • Rideaux • Panneaux Muraux</p>
+          <p><strong>Boutique :</strong> ${data.boutique.nom} ${data.boutique.codeBoutique ? `(${data.boutique.codeBoutique})` : ''}</p>
+          <p>${data.boutique.adresse ? `${data.boutique.adresse} • ` : ''}${bVille} • Tél : ${data.boutique.telephone || '+224 622 48 81 61'}</p>
+        </div>
       </div>
       <div class="invoice-meta">
-        <div class="invoice-badge">${data.montantRestant <= 0 ? 'FACTURE PAYÉE' : 'AVOIR / CRÉDIT'}</div>
+        <div class="invoice-badge ${data.montantRestant <= 0 ? 'paid' : ''}">${data.montantRestant <= 0 ? 'FACTURE PAYÉE' : 'AVOIR / CRÉDIT'}</div>
         <div class="invoice-number">${data.numeroFacture}</div>
         <div class="meta-date">Date : ${new Date(data.dateFacture).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
         <div class="meta-date">Réf. Vente : <strong>${data.referenceVente}</strong></div>
@@ -499,13 +526,13 @@ export function printInvoice(data: InvoiceData) {
 
     <div class="parties-grid">
       <div class="party-box">
-        <div class="party-title">Émise par (Vendeur)</div>
+        <div class="party-title">Émise par (Boutique Vendeuse)</div>
         <div class="party-name">${data.boutique.nom}</div>
         <div class="party-info">
-          Ville : ${data.boutique.ville || 'Kankan'}<br>
-          Adresse : ${data.boutique.adresse || 'Centre Commercial'}<br>
-          Contact : ${data.boutique.telephone || '+224 622 48 81 61'}<br>
-          ${data.vendeurNom ? `Servi par : ${data.vendeurNom}` : ''}
+          <strong>Ville :</strong> ${bVille}<br>
+          ${data.boutique.adresse ? `<strong>Adresse :</strong> ${data.boutique.adresse}<br>` : ''}
+          <strong>Contact :</strong> ${data.boutique.telephone || '+224 622 48 81 61'}<br>
+          ${data.vendeurNom ? `<strong>Servi par :</strong> ${data.vendeurNom}` : ''}
         </div>
       </div>
 
@@ -513,10 +540,10 @@ export function printInvoice(data: InvoiceData) {
         <div class="party-title">Client Facturé</div>
         <div class="party-name">${data.client.nom}</div>
         <div class="party-info">
-          Téléphone : ${data.client.telephone || 'Non renseigné'}<br>
-          Adresse : ${data.client.adresse || 'Kankan'}<br>
-          ${data.client.email ? `Email : ${data.client.email}<br>` : ''}
-          Ville : ${data.client.ville || 'Kankan'}
+          <strong>Téléphone :</strong> ${data.client.telephone || 'Non renseigné'}<br>
+          <strong>Ville :</strong> ${cVille}<br>
+          ${data.client.adresse ? `<strong>Adresse :</strong> ${data.client.adresse}<br>` : ''}
+          ${data.client.email ? `<strong>Email :</strong> ${data.client.email}` : ''}
         </div>
       </div>
     </div>
@@ -551,7 +578,7 @@ export function printInvoice(data: InvoiceData) {
     <div class="totals-area">
       <div class="totals-table">
         <div class="totals-row">
-          <span>Sous-total HT :</span>
+          <span>Sous-total Net :</span>
           <span>${formatGNF(data.total)}</span>
         </div>
         <div class="totals-row">
@@ -566,7 +593,7 @@ export function printInvoice(data: InvoiceData) {
           data.montantRestant > 0
             ? `
           <div class="totals-row rest">
-            <span>Reste à payer :</span>
+            <span>Reste à payer (Dette) :</span>
             <span>${formatGNF(data.montantRestant)}</span>
           </div>
         `
@@ -580,19 +607,292 @@ export function printInvoice(data: InvoiceData) {
     </div>
 
     <div class="footer">
-      <p>Merci pour votre confiance et pour votre achat chez <strong>Sidibe Multi-Services</strong> !</p>
+      <p>Merci pour votre confiance et pour votre achat chez <strong>Sidibe Services</strong> !</p>
       <p>Pour tout règlement à distance Orange Money Guinée :</p>
       <div class="orange-money-box">
         🟠 Code Marchand Orange Money : <strong>622 48 81 61</strong> (Composez le *144*4*4#)
       </div>
-      <p style="margin-top: 15px; font-size: 10px; color: #94a3b8;">
+      <p style="margin-top: 12px; font-size: 10px; color: #94a3b8;">
         Les marchandises vendues ne sont ni reprises ni échangées après 48 heures.
       </p>
     </div>
   </div>
 
   <script>
-    // Déclenchement automatique de l'impression
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 500);
+    }
+  </script>
+</body>
+</html>
+`;
+
+  printWindow.document.open();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+}
+
+/**
+ * Données pour le bordereau de virement
+ */
+export interface VirementReceiptData {
+  reference: string;
+  dateCloture: string;
+  boutique: {
+    nom: string;
+    codeBoutique?: string;
+    ville?: string;
+    telephone?: string;
+  };
+  vendeur: {
+    nom: string;
+    telephone?: string;
+  };
+  montant: number;
+  statut: string; // 'EN_ATTENTE' | 'VALIDEE'
+  notes?: string;
+  soldeTheorique?: number;
+}
+
+/**
+ * Imprime un bordereau de virement professionnel (même style que les factures de vente)
+ */
+export function printVirementReceipt(data: VirementReceiptData) {
+  const printWindow = window.open('', '_blank', 'width=800,height=900');
+  if (!printWindow) {
+    emitToast(
+      'Veuillez autoriser les fenêtres pop-up pour imprimer le bordereau.',
+      'warning',
+      'Pop-up bloqué'
+    );
+    return;
+  }
+
+  const isValidee = data.statut === 'VALIDEE';
+  const dateFormatted = new Date(data.dateCloture).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const boutiqueVille = data.boutique.ville || 'Guinée';
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Bordereau de Virement ${data.reference} - Sidibe Services</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background: #fff; color: #1e293b; padding: 20px; font-size: 13px; line-height: 1.5; }
+    .receipt-card { max-width: 820px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 14px; padding: 28px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+
+    /* Header */
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f59e0b; padding-bottom: 18px; margin-bottom: 22px; }
+    .logo-area { display: flex; align-items: center; gap: 14px; }
+    .brand-logo { width: 54px; height: 54px; border-radius: 12px; object-fit: cover; border: 1.5px solid #d97706; }
+    .logo-area h1 { font-size: 20px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; }
+    .logo-area span { color: #d97706; }
+    .logo-area .sub { color: #64748b; font-size: 11.5px; margin-top: 2px; }
+    .receipt-meta { text-align: right; }
+    .receipt-badge { display: inline-block; font-weight: 800; font-size: 11px; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; margin-bottom: 6px; }
+    .badge-attente { background: #fef3c7; color: #92400e; }
+    .badge-validee { background: #dcfce7; color: #166534; }
+    .receipt-number { font-size: 17px; font-weight: 800; color: #0f172a; }
+    .meta-date { font-size: 11.5px; color: #64748b; margin-top: 2px; }
+
+    /* Titre document */
+    .doc-title { text-align: center; margin-bottom: 22px; padding: 14px; background: #0f172a; border-radius: 10px; }
+    .doc-title h2 { font-size: 15px; font-weight: 900; color: #f59e0b; text-transform: uppercase; letter-spacing: 1px; }
+    .doc-title p { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+
+    /* Parties */
+    .parties-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+    .party-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .party-title { font-size: 10.5px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .party-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+    .party-info { font-size: 11.5px; color: #475569; line-height: 1.6; }
+
+    /* Montant principal */
+    .amount-box { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 24px; margin-bottom: 22px; text-align: center; }
+    .amount-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .amount-value { font-size: 32px; font-weight: 900; color: #f59e0b; letter-spacing: -0.5px; }
+    .amount-sub { font-size: 11.5px; color: #64748b; margin-top: 6px; }
+
+    /* Détails récap */
+    .details-table { width: 100%; border-collapse: collapse; margin-bottom: 22px; }
+    .details-table th { background: #f1f5f9; color: #475569; text-align: left; padding: 9px 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+    .details-table td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; font-size: 12.5px; color: #334155; }
+    .details-table td:last-child { font-weight: 700; text-align: right; }
+    .details-table tr:last-child td { border-bottom: none; }
+
+    /* Notes */
+    .notes-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin-bottom: 22px; font-size: 11.5px; color: #92400e; }
+    .notes-box strong { display: block; margin-bottom: 4px; color: #78350f; }
+
+    /* Signatures */
+    .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 30px; padding-top: 20px; border-top: 2px dashed #cbd5e1; }
+    .sig-box { text-align: center; }
+    .sig-title { font-size: 11.5px; font-weight: 700; color: #475569; margin-bottom: 40px; }
+    .sig-line { border-top: 1px solid #94a3b8; width: 80%; margin: 0 auto; }
+    .sig-name { font-size: 10.5px; color: #94a3b8; margin-top: 4px; }
+
+    /* Footer */
+    .footer { margin-top: 20px; border-top: 1px dashed #cbd5e1; padding-top: 14px; text-align: center; color: #94a3b8; font-size: 10.5px; }
+
+    @media print {
+      body { padding: 0; background: #fff; }
+      .receipt-card { border: none; padding: 0; box-shadow: none; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin-bottom: 16px; text-align: right;">
+    <button onclick="window.print()" style="background: #d97706; color: white; border: none; padding: 10px 22px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px;">🖨️ Imprimer le Bordereau</button>
+  </div>
+
+  <div class="receipt-card">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo-area">
+        <img src="/img/logo.jpeg" alt="Logo Sidibé Services" class="brand-logo" onerror="this.style.display='none'" />
+        <div>
+          <h1>SIDIBE <span>SERVICES</span></h1>
+          <div class="sub">Décoration d'Intérieur • Tapis de Luxe • Rideaux • Panneaux Muraux</div>
+          <div class="sub"><strong>Boutique :</strong> ${data.boutique.nom}${data.boutique.codeBoutique ? ` (${data.boutique.codeBoutique})` : ''} • ${boutiqueVille}</div>
+          <div class="sub">Tél : ${data.boutique.telephone || '+224 622 48 81 61'}</div>
+        </div>
+      </div>
+      <div class="receipt-meta">
+        <div class="receipt-badge ${isValidee ? 'badge-validee' : 'badge-attente'}">
+          ${isValidee ? '✅ REÇU & ENCAISSÉ' : '⏳ EN ATTENTE RÉCEPTION'}
+        </div>
+        <div class="receipt-number">${data.reference}</div>
+        <div class="meta-date">Date : ${dateFormatted}</div>
+      </div>
+    </div>
+
+    <!-- Titre document -->
+    <div class="doc-title">
+      <h2>💰 Bordereau de Versement Espèces — Caisse Admin</h2>
+      <p>Document officiel de transfert de fonds entre la boutique et la caisse centrale</p>
+    </div>
+
+    <!-- Parties -->
+    <div class="parties-grid">
+      <div class="party-box">
+        <div class="party-title">🏬 Boutique Émettrice</div>
+        <div class="party-name">${data.boutique.nom}</div>
+        <div class="party-info">
+          <strong>Code :</strong> ${data.boutique.codeBoutique || 'N/A'}<br>
+          <strong>Ville :</strong> ${boutiqueVille}<br>
+          <strong>Contact :</strong> ${data.boutique.telephone || '+224 622 48 81 61'}
+        </div>
+      </div>
+      <div class="party-box">
+        <div class="party-title">👤 Vendeur Responsable</div>
+        <div class="party-name">${data.vendeur.nom}</div>
+        <div class="party-info">
+          ${data.vendeur.telephone ? `<strong>Tél :</strong> ${data.vendeur.telephone}<br>` : ''}
+          <strong>Destinataire :</strong> Caisse Centrale Admin<br>
+          <strong>Référence :</strong> <span style="font-family: monospace; font-weight: 700; color: #d97706;">${data.reference}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Montant principal -->
+    <div class="amount-box">
+      <div class="amount-label">Montant en Espèces Versé à la Caisse Admin</div>
+      <div class="amount-value">${formatGNF(data.montant)}</div>
+      <div class="amount-sub">Virement depuis ${data.boutique.nom} — ${dateFormatted}</div>
+    </div>
+
+    <!-- Détails récapitulatifs -->
+    <table class="details-table">
+      <thead>
+        <tr>
+          <th>Détail</th>
+          <th>Valeur</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Référence Bordereau</td>
+          <td style="font-family: monospace; color: #d97706;">${data.reference}</td>
+        </tr>
+        <tr>
+          <td>Date et Heure</td>
+          <td>${dateFormatted}</td>
+        </tr>
+        <tr>
+          <td>Boutique Source</td>
+          <td>${data.boutique.nom}${data.boutique.codeBoutique ? ` (${data.boutique.codeBoutique})` : ''}</td>
+        </tr>
+        <tr>
+          <td>Ville</td>
+          <td>${boutiqueVille}</td>
+        </tr>
+        <tr>
+          <td>Vendeur Émetteur</td>
+          <td>${data.vendeur.nom}${data.vendeur.telephone ? ` — ${data.vendeur.telephone}` : ''}</td>
+        </tr>
+        <tr>
+          <td>Destinataire</td>
+          <td>Caisse Centrale — Administration Sidibe Services</td>
+        </tr>
+        <tr>
+          <td>Statut du Virement</td>
+          <td style="color: ${isValidee ? '#16a34a' : '#d97706'}; font-weight: 800;">${isValidee ? '✅ Reçu & Encaissé par l\'Admin' : '⏳ En Attente de Réception Admin'}</td>
+        </tr>
+        ${data.soldeTheorique ? `
+        <tr>
+          <td>Solde Théorique Boutique</td>
+          <td>${formatGNF(data.soldeTheorique)}</td>
+        </tr>
+        ` : ''}
+        <tr style="background: #fef3c7;">
+          <td style="font-weight: 800; color: #92400e;">MONTANT VERSÉ EN ESPÈCES</td>
+          <td style="font-size: 16px; color: #d97706; font-weight: 900;">${formatGNF(data.montant)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    ${data.notes ? `
+    <div class="notes-box">
+      <strong>📝 Notes / Motif :</strong>
+      ${data.notes}
+    </div>
+    ` : ''}
+
+    <!-- Signatures -->
+    <div class="signatures">
+      <div class="sig-box">
+        <div class="sig-title">Signature du Vendeur Émetteur<br><em style="font-weight:400; color:#94a3b8;">${data.vendeur.nom}</em></div>
+        <div class="sig-line"></div>
+        <div class="sig-name">Signature & Date</div>
+      </div>
+      <div class="sig-box">
+        <div class="sig-title">Signature du Réceptionnaire<br><em style="font-weight:400; color:#94a3b8;">Caisse Centrale Admin</em></div>
+        <div class="sig-line"></div>
+        <div class="sig-name">Signature, Cachet & Date</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p><strong>SIDIBE SERVICES</strong> — Commerce Général, Import-Export &amp; Décoration d'Intérieur</p>
+      <p>Ce bordereau fait foi de versement d'espèces de la boutique vers la caisse administrative centrale.</p>
+      <p style="margin-top: 6px; color: #cbd5e1;">Document généré le ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Réf. ${data.reference}</p>
+    </div>
+  </div>
+
+  <script>
     window.onload = function() {
       setTimeout(function() {
         window.print();
@@ -615,7 +915,7 @@ export function getWhatsAppInvoiceUrl(data: InvoiceData): string {
   const phone = (data.client.telephone || '').replace(/[^0-9]/g, '');
   const formattedPhone = phone.startsWith('224') ? phone : `224${phone}`;
 
-  const message = `Bonjour ${data.client.nom},\n\nVoici votre facture de chez *Sidibe Multi-Services* (${data.boutique.nom}) :\n\n📄 *Facture N° :* ${data.numeroFacture}\n🔖 *Réf Vente :* ${data.referenceVente}\n📅 *Date :* ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\n\n*Articles commandés :*\n${data.lignes.map((l) => `• ${l.designation} (${l.varianteInfo || 'Standard'}) x${l.quantite} = ${formatGNF(l.totalLigne)}`).join('\n')}\n\n💰 *Total :* ${formatGNF(data.total)}\n✅ *Montant réglé :* ${formatGNF(data.montantPaye)}${data.montantRestant > 0 ? `\n⚠️ *Reste à payer :* ${formatGNF(data.montantRestant)}` : ''}\n💳 *Mode :* ${data.modePaiement}\n\n🟠 *Paiement Orange Money :* Code Marchand 622 48 81 61\n\nMerci pour votre fidélité ! Pour toute question, contactez-nous au ${data.boutique.telephone || '+224 622 48 81 61'}.`;
+  const message = `Bonjour ${data.client.nom},\n\nVoici votre facture de chez *Sidibe Services* (${data.boutique.nom}) :\n\n📄 *Facture N° :* ${data.numeroFacture}\n🔖 *Réf Vente :* ${data.referenceVente}\n📅 *Date :* ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\n\n*Articles commandés :*\n${data.lignes.map((l) => `• ${l.designation} (${l.varianteInfo || 'Standard'}) x${l.quantite} = ${formatGNF(l.totalLigne)}`).join('\n')}\n\n💰 *Total :* ${formatGNF(data.total)}\n✅ *Montant réglé :* ${formatGNF(data.montantPaye)}${data.montantRestant > 0 ? `\n⚠️ *Reste à payer :* ${formatGNF(data.montantRestant)}` : ''}\n💳 *Mode :* ${data.modePaiement}\n\n🟠 *Paiement Orange Money :* Code Marchand 622 48 81 61\n\nMerci pour votre fidélité ! Pour toute question, contactez-nous au ${data.boutique.telephone || '+224 622 48 81 61'}.`;
 
   return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
 }
@@ -625,8 +925,8 @@ export function getWhatsAppInvoiceUrl(data: InvoiceData): string {
  */
 export function getEmailInvoiceUrl(data: InvoiceData): string {
   const email = data.client.email || '';
-  const subject = `Facture ${data.numeroFacture} — Sidibe Multi-Services`;
-  const body = `Bonjour ${data.client.nom},\n\nVeuillez trouver ci-dessous le récapitulatif de votre achat auprès de Sidibe Multi-Services (${data.boutique.nom}) :\n\nNuméro de Facture : ${data.numeroFacture}\nDate : ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\nBoutique : ${data.boutique.nom} (${data.boutique.ville || 'Kankan'})\n\nDétail des articles :\n${data.lignes.map((l) => `- ${l.designation} (${l.varianteInfo || 'Standard'}) x${l.quantite} : ${formatGNF(l.totalLigne)}`).join('\n')}\n\nMontant Total : ${formatGNF(data.total)}\nMontant Payé : ${formatGNF(data.montantPaye)}\n${data.montantRestant > 0 ? `Reste Dû : ${formatGNF(data.montantRestant)}\n` : ''}Mode de paiement : ${data.modePaiement}\n\nCode Marchand Orange Money Guinée : 622 48 81 61\n\nCordialement,\nService Commercial Sidibe Multi-Services\n${data.boutique.telephone || '+224 622 48 81 61'}`;
+  const subject = `Facture ${data.numeroFacture} — Sidibe Services`;
+  const body = `Bonjour ${data.client.nom},\n\nVeuillez trouver ci-dessous le récapitulatif de votre achat auprès de Sidibe Services (${data.boutique.nom}) :\n\nNuméro de Facture : ${data.numeroFacture}\nDate : ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\nBoutique : ${data.boutique.nom} (${data.boutique.ville || 'Guinée'})\n\nDétail des articles :\n${data.lignes.map((l) => `- ${l.designation} (${l.varianteInfo || 'Standard'}) x${l.quantite} : ${formatGNF(l.totalLigne)}`).join('\n')}\n\nMontant Total : ${formatGNF(data.total)}\nMontant Payé : ${formatGNF(data.montantPaye)}\n${data.montantRestant > 0 ? `Reste Dû : ${formatGNF(data.montantRestant)}\n` : ''}Mode de paiement : ${data.modePaiement}\n\nCode Marchand Orange Money Guinée : 622 48 81 61\n\nCordialement,\nService Commercial Sidibe Services\n${data.boutique.telephone || '+224 622 48 81 61'}`;
 
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }

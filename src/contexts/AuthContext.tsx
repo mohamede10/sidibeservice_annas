@@ -9,9 +9,14 @@ export interface UserSession {
   role: 'ADMIN' | 'GERANT' | 'VENDEUR';
   profil?: string;
   ville?: string;
+  adresse?: string;
+  telephone?: string;
   pointVenteId?: number;
   pointVenteNom?: string;
   pointVenteCode?: string;
+  boutiqueVille?: string;
+  boutiqueAdresse?: string;
+  boutiqueTelephone?: string;
 }
 
 interface AuthContextType {

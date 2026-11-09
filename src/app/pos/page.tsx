@@ -371,6 +371,12 @@ export default function PosPage() {
 
       const json = await res.json();
       if (json.success) {
+        const pdvSale = json.vente?.pointVente || json.pointDeVente;
+        const bVille = pdvSale?.ville || user?.boutiqueVille || user?.ville || 'Guinée';
+        const bNom = pdvSale?.nom || activePointVenteNom || user?.pointVenteNom || 'Sidibe Services Boutique';
+        const bAdresse = pdvSale?.adresse || user?.boutiqueAdresse || '';
+        const bTel = pdvSale?.telephone || user?.boutiqueTelephone || '+224 622 48 81 61';
+
         setCompletedSale({
           reference: json.vente.reference,
           total: subtotal,
@@ -382,9 +388,10 @@ export default function PosPage() {
           adresseClient: adrFinal,
           emailClient: emailFinal,
           dateVente: new Date().toISOString(),
-          boutiqueNom: activePointVenteNom || user?.pointVenteNom || 'Sidibe Services Boutique',
-          boutiqueVille: user?.ville || 'Kankan',
-          boutiqueTelephone: '+224 622 48 81 61',
+          boutiqueNom: bNom,
+          boutiqueVille: bVille,
+          boutiqueAdresse: bAdresse,
+          boutiqueTelephone: bTel,
           lignes: cart.map((c) => ({
             nomProduit: c.nom,
             varianteInfo: `${c.taille || ''} ${c.couleur || ''}`.trim(),
@@ -426,6 +433,7 @@ export default function PosPage() {
         telephone: completedSale.telephoneClient,
         adresse: completedSale.adresseClient,
         email: completedSale.emailClient,
+        ville: completedSale.boutiqueVille || 'Guinée',
       },
       lignes: completedSale.lignes.map((l) => ({
         designation: l.nomProduit,
@@ -1026,13 +1034,36 @@ export default function PosPage() {
 
           {/* Printable Ticket Area */}
           <div id="printable-area" className="p-6 rounded-2xl bg-white text-slate-900 font-sans shadow-lg space-y-4">
-            {/* Ticket Header */}
-            <div className="text-center pb-3 border-b border-dashed border-slate-300 space-y-1">
-              <h2 className="text-xl font-black tracking-wider text-slate-900">SIDIBE SERVICE</h2>
-              <p className="text-xs font-semibold text-amber-700">{completedSale?.boutiqueNom || 'Boutique Principale'}</p>
-              <p className="text-[11px] text-slate-500">
-                Tél: {completedSale?.boutiqueTelephone || '+224 622 48 81 61'} • Guinée, {completedSale?.boutiqueVille || 'Kankan'}
-              </p>
+            {/* Ticket Header avec Logo */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/img/logo.jpeg"
+                  alt="Logo Sidibé Services"
+                  className="w-12 h-12 rounded-xl object-cover border border-amber-500/30 shadow-sm"
+                />
+                <div className="text-left">
+                  <h2 className="text-lg font-black tracking-wide text-slate-900 flex items-center gap-1.5">
+                    SIDIBE <span className="text-amber-600">SERVICES</span>
+                  </h2>
+                  <p className="text-xs font-bold text-slate-700">{completedSale?.boutiqueNom || 'Boutique'}</p>
+                  <p className="text-[11px] text-slate-500">
+                    {completedSale?.boutiqueAdresse ? `${completedSale.boutiqueAdresse} • ` : ''}
+                    {completedSale?.boutiqueVille || 'Guinée'} • Tél : {completedSale?.boutiqueTelephone || '+224 622 48 81 61'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`inline-block text-[10px] px-2.5 py-0.5 rounded font-extrabold uppercase ${
+                  (completedSale?.montantRestant || 0) <= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {(completedSale?.montantRestant || 0) <= 0 ? 'PAYÉE' : 'CRÉDIT / AVOIR'}
+                </span>
+                <p className="text-xs font-bold text-slate-900 mt-1">{completedSale?.reference}</p>
+                <p className="text-[10px] text-slate-500">
+                  {completedSale?.dateVente ? new Date(completedSale.dateVente).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                </p>
+              </div>
             </div>
 
             {/* Sale metadata */}
@@ -1127,11 +1158,15 @@ export default function PosPage() {
             <motion.button
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              onClick={() => window.print()}
-              className="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg"
+              onClick={() => {
+                const inv = buildCompletedInvoice();
+                if (inv) printInvoice(inv);
+                else window.print();
+              }}
+              className="btn-gold px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              Imprimer le Ticket de Caisse
+              Imprimer la Facture
             </motion.button>
           </div>
         </div>

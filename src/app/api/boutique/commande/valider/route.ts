@@ -193,16 +193,17 @@ export async function POST(request: NextRequest) {
         dateFacture: new Date().toISOString(),
         boutique: {
           nom: pvNom,
-          ville: commande.pointVente?.ville || 'Kankan',
-          adresse: 'Centre Commercial',
-          telephone: '+224 622 48 81 61',
+          ville: commande.pointVente?.ville || 'Guinée',
+          adresse: commande.pointVente?.adresse || 'Centre Commercial',
+          telephone: commande.pointVente?.telephone || '+224 622 48 81 61',
         },
         client: {
           nom: commande.client?.nom || commande.nomClient || 'Client',
           telephone: commande.client?.telephone || commande.telephoneClient || '',
-          adresse: commande.client?.adresse || commande.notes?.includes('Adresse:')
+          adresse: commande.client?.adresse || (commande.notes?.includes('Adresse:')
             ? commande.notes?.split('Adresse:')[1]?.split('|')[0]?.trim()
-            : 'Kankan',
+            : ''),
+          ville: commande.client?.ville || commande.pointVente?.ville || 'Guinée',
         },
         lignes: commande.lignes.map((l) => ({
           designation: l.nomProduit,

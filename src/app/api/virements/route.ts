@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const virements = await prisma.clotureCaisse.findMany({
       where: pvId ? { pointDeVenteId: pvId } : undefined,
       include: {
-        pointDeVente: { select: { id: true, nom: true, codeBoutique: true, ville: true } },
+        pointDeVente: { select: { id: true, nom: true, codeBoutique: true, ville: true, telephone: true } },
         utilisateur: { select: { id: true, nom: true, role: true, telephone: true } },
       },
       orderBy: { dateCloture: 'desc' },
@@ -46,10 +46,34 @@ export async function GET(req: NextRequest) {
       },
     });
 
+    // 3b. Fetch cash debt repayments (recouvrements de dettes en espèces)
+    const paiementsDette = await prisma.paiementDette.findMany({
+      where: {
+        modePaiement: 'ESPECES',
+      },
+      select: {
+        id: true,
+        montant: true,
+        venteId: true,
+        recuParId: true,
+        vente: {
+          select: {
+            pointVenteId: true,
+            modePaiement: true,
+          },
+        },
+        recuPar: {
+          select: {
+            pointVenteId: true,
+          },
+        },
+      },
+    });
+
     // 4. Points de vente
     const pointsDeVente = await prisma.pointDeVente.findMany({
       where: { active: true },
-      select: { id: true, nom: true, codeBoutique: true, ville: true },
+      select: { id: true, nom: true, codeBoutique: true, ville: true, telephone: true },
       orderBy: { nom: 'asc' },
     });
 
@@ -71,6 +95,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Ajouter les remboursements de dettes reçus en espèces sur les ventes non-espèces (ou sans vente liée)
+    let totalRecouvrementEspeces = 0;
+    for (const p of paiementsDette) {
+      const pPointVenteId = p.recuPar?.pointVenteId || p.vente?.pointVenteId;
+      if (!pvId || pPointVenteId === pvId) {
+        if (!p.vente || p.vente.modePaiement !== 'ESPECES') {
+          totalRecouvrementEspeces += p.montant;
+        }
+      }
+    }
+
+    const totalEncaisseEspeces = totalVenduEspeces + totalRecouvrementEspeces;
     const totalDepensesEspeces = depenses.reduce((sum, d) => sum + d.montant, 0);
 
     let totalVireValide = 0;
@@ -84,8 +120,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Difference = Total Vendu Espèces - Dépenses Espèces - Total Viré à l'Admin
-    const differenceCaisse = totalVenduEspeces - totalDepensesEspeces - totalVireValide;
+    // Difference = Total Encaissé Espèces (Ventes + Recouvrements) - Dépenses Espèces - Total Viré à l'Admin (tous statuts)
+    const differenceCaisse = Math.max(0, totalEncaisseEspeces - totalDepensesEspeces - totalVireValide - totalVireEnAttente);
 
     // Synthese par boutique
     const syntheseParBoutique = pointsDeVente.map((pdv) => {
@@ -97,6 +133,13 @@ export async function GET(req: NextRequest) {
         .filter((v) => v.modePaiement === 'ESPECES')
         .reduce((sum, v) => sum + v.montantPaye, 0);
 
+      const pdvPaiementsDette = paiementsDette.filter((p) => {
+        const pPdvId = p.recuPar?.pointVenteId || p.vente?.pointVenteId;
+        return pPdvId === pdv.id && (!p.vente || p.vente.modePaiement !== 'ESPECES');
+      });
+      const recouvrementEsp = pdvPaiementsDette.reduce((sum, p) => sum + p.montant, 0);
+
+      const totalEncaissePdvEsp = venduEsp + recouvrementEsp;
       const depEsp = pdvDepenses.reduce((sum, d) => sum + d.montant, 0);
 
       const virValide = pdvVirements
@@ -107,11 +150,11 @@ export async function GET(req: NextRequest) {
         .filter((vir) => vir.statut === 'EN_ATTENTE')
         .reduce((sum, vir) => sum + vir.soldeReel, 0);
 
-      const ecartRestant = venduEsp - depEsp - virValide;
+      const ecartRestant = Math.max(0, totalEncaissePdvEsp - depEsp - virValide - virAttente);
 
       return {
         pointDeVente: pdv,
-        venduEsp,
+        venduEsp: totalEncaissePdvEsp,
         depEsp,
         virValide,
         virAttente,
@@ -125,7 +168,7 @@ export async function GET(req: NextRequest) {
       pointsDeVente,
       vendeurs,
       statistiques: {
-        totalVenduEspeces,
+        totalVenduEspeces: totalEncaisseEspeces,
         totalVenduGlobal,
         totalDepensesEspeces,
         totalVireValide,
@@ -169,7 +212,7 @@ export async function POST(req: NextRequest) {
     const totalEspecesVente = ventes.reduce((sum, v) => sum + v.montantPaye, 0);
 
     const prevVirements = await prisma.clotureCaisse.findMany({
-      where: { pointDeVenteId: pdvId, statut: 'VALIDEE' },
+      where: { pointDeVenteId: pdvId },
       select: { soldeReel: true },
     });
     const totalDejaVire = prevVirements.reduce((sum, v) => sum + v.soldeReel, 0);

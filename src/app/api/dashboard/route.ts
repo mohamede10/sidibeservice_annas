@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
         ],
       };
 
-      const [pointDeVente, totalProduits, totalVentes, ventesAgg, recentVentes, stockParPointList] = await Promise.all([
+      const [pointDeVente, totalProduits, totalVentes, ventesAgg, recentVentes, stockParPointList, depensesAgg, virementsAgg, virementsRecusAgg, virementsAttenteAgg] = await Promise.all([
         prisma.pointDeVente.findUnique({
           where: { id: pointVenteId },
           select: { id: true, nom: true, codeBoutique: true, ville: true },
@@ -62,6 +62,22 @@ export async function GET(request: NextRequest) {
               },
             },
           },
+        }),
+        prisma.depense.aggregate({
+          where: { pointDeVenteId: pointVenteId },
+          _sum: { montant: true },
+        }),
+        prisma.clotureCaisse.aggregate({
+          where: { pointDeVenteId: pointVenteId },
+          _sum: { soldeReel: true },
+        }),
+        prisma.clotureCaisse.aggregate({
+          where: { pointDeVenteId: pointVenteId, statut: 'VALIDEE' },
+          _sum: { soldeReel: true },
+        }),
+        prisma.clotureCaisse.aggregate({
+          where: { pointDeVenteId: pointVenteId, statut: 'EN_ATTENTE' },
+          _sum: { soldeReel: true },
         }),
       ]);
 
@@ -166,6 +182,13 @@ export async function GET(request: NextRequest) {
         },
       });
 
+      // Trésorerie Caisse réelle = Ventes encaissées - Dépenses - Tous les virements
+      const totalDepensesBoutique = depensesAgg._sum.montant || 0;
+      const totalVirementsBoutique = virementsAgg._sum.soldeReel || 0;
+      const totalVirementsRecusBoutique = virementsRecusAgg._sum.soldeReel || 0;
+      const totalVirementsAttenteBoutique = virementsAttenteAgg._sum.soldeReel || 0;
+      const tresorerieCaisse = Math.max(0, (ventesAgg._sum.montantPaye || 0) - totalDepensesBoutique - totalVirementsBoutique);
+
       return NextResponse.json({
         success: true,
         isFiltered: true,
@@ -175,10 +198,14 @@ export async function GET(request: NextRequest) {
           totalClients: distinctClients.length,
           totalVentes,
           chiffreAffaires: ventesAgg._sum.total || 0,
-          montantEncaisse: ventesAgg._sum.montantPaye || 0,
-          totalDettes: ventesAgg._sum.montantRestant || 0,
+          montantEncaisse: tresorerieCaisse,
+          totalDettes: Math.max(0, ventesAgg._sum.montantRestant || 0),
           montantTotalStock: montantTotalStockBoutique,
           totalStockArticles: totalArticlesStockBoutique,
+          totalDepenses: totalDepensesBoutique,
+          totalVirements: totalVirementsBoutique,
+          totalVirementsRecus: totalVirementsRecusBoutique,
+          totalVirementsAttente: totalVirementsAttenteBoutique,
         },
         recentVentes,
         lowStockVariantes,
@@ -209,6 +236,13 @@ export async function GET(request: NextRequest) {
       allVariantes,
       allBoutiques,
       ventesParBoutique,
+      depensesGlobalAgg,
+      virementsGlobalAgg,
+      virementsRecusGlobalAgg,
+      virementsAttenteGlobalAgg,
+      depensesParPDV,
+      virementsParPDV,
+      virementsRecusParPDV,
     ] = await Promise.all([
       prisma.produit.count({ where: { actif: true } }),
       prisma.client.count(),
@@ -293,6 +327,33 @@ export async function GET(request: NextRequest) {
           _all: true,
         },
       }),
+      prisma.depense.aggregate({
+        _sum: { montant: true },
+      }),
+      prisma.clotureCaisse.aggregate({
+        _sum: { soldeReel: true },
+      }),
+      prisma.clotureCaisse.aggregate({
+        where: { statut: 'VALIDEE' },
+        _sum: { soldeReel: true },
+      }),
+      prisma.clotureCaisse.aggregate({
+        where: { statut: 'EN_ATTENTE' },
+        _sum: { soldeReel: true },
+      }),
+      prisma.depense.groupBy({
+        by: ['pointDeVenteId'],
+        _sum: { montant: true },
+      }),
+      prisma.clotureCaisse.groupBy({
+        by: ['pointDeVenteId'],
+        _sum: { soldeReel: true },
+      }),
+      prisma.clotureCaisse.groupBy({
+        by: ['pointDeVenteId'],
+        where: { statut: 'VALIDEE' },
+        _sum: { soldeReel: true },
+      }),
     ]);
 
     // Calcul du stock par boutique
@@ -334,11 +395,24 @@ export async function GET(request: NextRequest) {
     }
 
     const ventesMap = Object.fromEntries(ventesParBoutique.map((v) => [v.pointVenteId, v]));
+    const depensesMap = Object.fromEntries(depensesParPDV.map((d) => [d.pointDeVenteId, d._sum.montant || 0]));
+    const virementsMap = Object.fromEntries(virementsParPDV.map((v) => [v.pointDeVenteId, v._sum.soldeReel || 0]));
+    const virementsRecusMap = Object.fromEntries(virementsRecusParPDV.map((v) => [v.pointDeVenteId, v._sum.soldeReel || 0]));
 
-    // Ventilation complète par boutique pour l'Admin avec le MONTANT DU STOCK
+    const totalDepensesGlobal = depensesGlobalAgg._sum.montant || 0;
+    const totalVirementsGlobal = virementsGlobalAgg._sum.soldeReel || 0;
+    const totalVirementsRecusGlobal = virementsRecusGlobalAgg._sum.soldeReel || 0;
+    const totalVirementsAttenteGlobal = virementsAttenteGlobalAgg._sum.soldeReel || 0;
+    const tresorerieCaisseGlobale = Math.max(0, (ventesAgg._sum.montantPaye || 0) - totalDepensesGlobal - totalVirementsGlobal);
+
+    // Ventilation complète par boutique pour l'Admin avec le MONTANT DU STOCK et la TRÉSORERIE RÉELLE
     const boutiquesBreakdown = allBoutiques.map((b) => {
       const vStats = ventesMap[b.id];
       const stockInfo = stockStatsByPDV[b.id] || { montant: 0, quantite: 0, references: 0 };
+      const depenseBoutique = depensesMap[b.id] || 0;
+      const virementBoutique = virementsMap[b.id] || 0;
+      const virementRecuBoutique = virementsRecusMap[b.id] || 0;
+      const caisseBoutique = Math.max(0, (vStats?._sum?.montantPaye || 0) - depenseBoutique - virementBoutique);
 
       return {
         pointVenteId: b.id,
@@ -347,13 +421,16 @@ export async function GET(request: NextRequest) {
         ville: b.ville,
         active: b.active,
         chiffreAffaires: vStats?._sum?.total || 0,
-        montantEncaisse: vStats?._sum?.montantPaye || 0,
-        totalDettes: vStats?._sum?.montantRestant || 0,
+        montantEncaisse: caisseBoutique,
+        totalDettes: Math.max(0, vStats?._sum?.montantRestant || 0),
         nombreVentes: vStats?._count?._all || 0,
         // Montant et quantité du stock de chaque boutique
         montantTotalStock: stockInfo.montant,
         quantiteTotalStock: stockInfo.quantite,
         referencesEnStock: stockInfo.references,
+        totalDepenses: depenseBoutique,
+        totalVirements: virementBoutique,
+        totalVirementsRecus: virementRecuBoutique,
       };
     });
 
@@ -384,10 +461,14 @@ export async function GET(request: NextRequest) {
         totalClients,
         totalVentes,
         chiffreAffaires: ventesAgg._sum.total || 0,
-        montantEncaisse: ventesAgg._sum.montantPaye || 0,
-        totalDettes: Math.max(0, (clientsDettesAgg._sum.soldeDette || 0) + (ventesAgg._sum.montantRestant || 0)),
+        montantEncaisse: tresorerieCaisseGlobale,
+        totalDettes: Math.max(0, (ventesAgg._sum.montantRestant || 0)),
         montantTotalStock: montantTotalStockGlobal,
         totalStockArticles: totalStockArticlesGlobal,
+        totalDepenses: totalDepensesGlobal,
+        totalVirements: totalVirementsGlobal,
+        totalVirementsRecus: totalVirementsRecusGlobal,
+        totalVirementsAttente: totalVirementsAttenteGlobal,
       },
       recentVentes,
       lowStockVariantes,

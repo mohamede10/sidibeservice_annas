@@ -26,6 +26,7 @@ import { useToast } from '@/contexts/ToastContext';
 import {
   sendInvoiceViaWhatsApp,
   downloadInvoicePdf,
+  printInvoice,
   InvoiceData,
 } from '@/lib/invoicePdf';
 
@@ -45,11 +46,20 @@ interface Vente {
     id: number;
     nom: string;
     ville?: string;
+    adresse?: string;
+    telephone?: string;
+    codeBoutique?: string;
   };
   client?: {
     nom: string;
     telephone?: string;
     adresse?: string;
+    email?: string;
+    ville?: string;
+  };
+  vendeur?: {
+    id: number;
+    nom: string;
   };
   lignes: Array<{
     id: number;
@@ -165,7 +175,12 @@ export default function VentesPage() {
   }, [statutFilter, selectedBoutiqueId, isVendeur, user?.pointVenteId]);
 
   const handlePrint = () => {
-    window.print();
+    if (selectedVente) {
+      const inv = buildVenteInvoiceData(selectedVente);
+      printInvoice(inv);
+    } else {
+      window.print();
+    }
   };
 
   const buildVenteInvoiceData = (vente: Vente): InvoiceData => {
@@ -174,20 +189,27 @@ export default function VentesPage() {
         ? vente.factures[0].numeroFacture
         : `FAC-${vente.reference.replace(/^VTE-/, '')}`;
 
+    const bVille = vente.pointVente?.ville || 'Guinée';
+    const bAdresse = vente.pointVente?.adresse || '';
+    const bTel = vente.pointVente?.telephone || '+224 622 48 81 61';
+
     return {
       numeroFacture: numFacture,
       referenceVente: vente.reference,
       dateFacture: vente.dateVente,
       boutique: {
-        nom: vente.pointVente?.nom || vente.pointVenteNom || 'Boutique Sidibe Multi-Services',
-        ville: vente.pointVente?.ville || 'Kankan',
-        adresse: 'Centre Commercial',
-        telephone: '+224 622 48 81 61',
+        nom: vente.pointVente?.nom || vente.pointVenteNom || 'Sidibe Services',
+        ville: bVille,
+        adresse: bAdresse,
+        telephone: bTel,
+        codeBoutique: vente.pointVente?.codeBoutique,
       },
       client: {
         nom: vente.client?.nom || vente.nomClient || 'Client Comptant',
         telephone: vente.client?.telephone || vente.telephoneClient,
-        adresse: vente.client?.adresse || 'Kankan',
+        adresse: vente.client?.adresse || undefined,
+        email: vente.client?.email || undefined,
+        ville: vente.client?.ville || bVille,
       },
       lignes:
         vente.lignes && vente.lignes.length > 0
@@ -210,6 +232,7 @@ export default function VentesPage() {
       montantPaye: vente.montantPaye,
       montantRestant: vente.montantRestant,
       modePaiement: vente.modePaiement,
+      vendeurNom: vente.vendeur?.nom,
     };
   };
 
@@ -425,32 +448,63 @@ export default function VentesPage() {
       >
         <div className="space-y-4">
           <div id="printable-area" className="p-6 rounded-2xl bg-white text-slate-900 shadow-xl space-y-4">
-            {/* Header */}
+            {/* Header avec Logo officiel */}
             <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-              <div>
-                <h2 className="text-xl font-black text-slate-900">SIDIBE SERVICES</h2>
-                <p className="text-[11px] text-slate-500">
-                  {selectedVente?.pointVente?.nom || selectedVente?.pointVenteNom || 'Kankan, Guinée'} • Tél: +224 622 48 81 61
-                </p>
+              <div className="flex items-center gap-3.5">
+                <img
+                  src="/img/logo.jpeg"
+                  alt="Logo Sidibé Services"
+                  className="w-12 h-12 rounded-xl object-cover border border-amber-500/30 shadow-sm"
+                />
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 tracking-wide flex items-center gap-1.5">
+                    SIDIBE <span className="text-amber-600">SERVICES</span>
+                  </h2>
+                  <p className="text-xs font-bold text-slate-700">
+                    {selectedVente?.pointVente?.nom || selectedVente?.pointVenteNom || 'Boutique'}
+                  </p>
+                  <p className="text-[11px] text-slate-500">
+                    {selectedVente?.pointVente?.adresse ? `${selectedVente.pointVente.adresse} • ` : ''}
+                    {selectedVente?.pointVente?.ville || 'Guinée'} • Tél: {selectedVente?.pointVente?.telephone || '+224 622 48 81 61'}
+                  </p>
+                </div>
               </div>
               <div className="text-right">
-                <span className="text-xs px-2.5 py-1 rounded bg-slate-100 font-bold text-slate-800">
-                  FACTURE OFFICIELLE
+                <span className={`text-xs px-2.5 py-1 rounded font-black uppercase ${
+                  (selectedVente?.montantRestant || 0) <= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {(selectedVente?.montantRestant || 0) <= 0 ? 'FACTURE PAYÉE' : 'AVOIR / CRÉDIT'}
                 </span>
                 <p className="text-xs font-bold text-slate-900 mt-1">{selectedVente?.reference}</p>
                 <p className="text-[11px] text-slate-500">{formatDate(selectedVente?.dateVente)}</p>
               </div>
             </div>
 
-            {/* Client info */}
-            <div className="p-3 rounded-xl bg-slate-50 text-xs text-slate-700 space-y-0.5">
-              <p className="font-bold text-slate-900">Client : {selectedVente?.nomClient || selectedVente?.client?.nom || 'Client Comptant'}</p>
-              {selectedVente?.telephoneClient && (
-                <p className="text-slate-500">Tél : {selectedVente.telephoneClient}</p>
-              )}
-              {selectedVente?.pointVente?.nom && (
-                <p className="text-slate-500">Point de Vente : {selectedVente.pointVente.nom}</p>
-              )}
+            {/* Cartouches Vendeur et Client */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Émise par (Boutique)</p>
+                <p className="font-bold text-slate-900">{selectedVente?.pointVente?.nom || selectedVente?.pointVenteNom || 'Boutique'}</p>
+                <p className="text-slate-600">Ville : <strong className="text-slate-900">{selectedVente?.pointVente?.ville || 'Guinée'}</strong></p>
+                {selectedVente?.pointVente?.adresse && (
+                  <p className="text-slate-600">Adresse : {selectedVente.pointVente.adresse}</p>
+                )}
+                <p className="text-slate-600">Tél : {selectedVente?.pointVente?.telephone || '+224 622 48 81 61'}</p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Client Facturé</p>
+                <p className="font-bold text-slate-900">{selectedVente?.nomClient || selectedVente?.client?.nom || 'Client Comptant'}</p>
+                <p className="text-slate-600">
+                  Ville : <strong className="text-slate-900">{selectedVente?.client?.ville || selectedVente?.pointVente?.ville || 'Guinée'}</strong>
+                </p>
+                {selectedVente?.telephoneClient && (
+                  <p className="text-slate-600">Tél : {selectedVente.telephoneClient}</p>
+                )}
+                {selectedVente?.client?.adresse && (
+                  <p className="text-slate-600">Adresse : {selectedVente.client.adresse}</p>
+                )}
+              </div>
             </div>
 
             {/* Articles Table */}

@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
             id: clientId,
             nom: clientNom,
             telephone: v.client?.telephone || v.telephoneClient,
-            ville: v.client?.ville || 'Kankan',
+            ville: v.client?.ville || 'Guinée',
             soldeDette: 0,
             ventes: [],
             paiements: [],

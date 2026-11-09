@@ -47,16 +47,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const boutiqueVille = user.pointVenteDefaut?.ville || user.ville || 'Guinée';
+    const boutiqueAdresse = user.pointVenteDefaut?.adresse || '';
+    const boutiqueTelephone = user.pointVenteDefaut?.telephone || user.telephone || '+224 622 48 81 61';
+
     const sessionData = {
       id: user.id,
       nom: user.nom,
       login: user.login,
       role: user.role,
       profil: user.profil || (user.role === 'ADMIN' ? 'Administrateur Général' : 'Collaborateur'),
-      ville: user.ville || 'Kankan',
+      ville: boutiqueVille,
+      adresse: boutiqueAdresse,
+      telephone: boutiqueTelephone,
       pointVenteId: user.pointVenteId || user.pointVenteDefaut?.id || 1,
-      pointVenteNom: user.pointVenteDefaut?.nom || 'Boutique Principale Kankan',
-      pointVenteCode: user.pointVenteDefaut?.codeBoutique || 'KAN-01',
+      pointVenteNom: user.pointVenteDefaut?.nom || 'Boutique Principale',
+      pointVenteCode: user.pointVenteDefaut?.codeBoutique || 'BP-01',
+      boutiqueVille,
+      boutiqueAdresse,
+      boutiqueTelephone,
     };
 
     return NextResponse.json({

@@ -25,6 +25,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { printVirementReceipt } from '@/lib/invoicePdf';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
@@ -34,6 +35,7 @@ interface PointDeVente {
   nom: string;
   codeBoutique: string;
   ville?: string;
+  telephone?: string;
 }
 
 interface Vendeur {
@@ -125,8 +127,7 @@ export default function VirementsPage() {
   const [montant, setMontant] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Printable receipt
-  const [receiptItem, setReceiptItem] = useState<VirementRecord | null>(null);
+  // Printable receipt — géré via printVirementReceipt() dans invoicePdf.ts
 
   const fetchVirements = async () => {
     try {
@@ -234,10 +235,24 @@ export default function VirementsPage() {
   };
 
   const handlePrint = (item: VirementRecord) => {
-    setReceiptItem(item);
-    setTimeout(() => {
-      window.print();
-    }, 300);
+    printVirementReceipt({
+      reference: item.reference,
+      dateCloture: item.dateCloture,
+      boutique: {
+        nom: item.pointDeVente.nom,
+        codeBoutique: item.pointDeVente.codeBoutique,
+        ville: item.pointDeVente.ville,
+        telephone: item.pointDeVente.telephone,
+      },
+      vendeur: {
+        nom: item.utilisateur?.nom || 'Vendeur',
+        telephone: item.utilisateur?.telephone,
+      },
+      montant: item.soldeReel,
+      statut: item.statut,
+      notes: item.notes,
+      soldeTheorique: item.soldeTheorique,
+    });
   };
 
   const filteredVirements = virements.filter((v) => {
@@ -336,7 +351,7 @@ export default function VirementsPage() {
           </div>
           <p className="text-2xl font-black text-amber-400 mt-2">{formatCurrency(stats.differenceCaisse)}</p>
           <p className="text-[11px] text-slate-400 mt-1">
-            Espèces en tiroir non encore virées
+            Espèces en tiroir non encore virées (hors EN ATTENTE)
           </p>
         </div>
       </div>
@@ -710,63 +725,6 @@ export default function VirementsPage() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Printable Décharge de versement */}
-      {receiptItem && (
-        <div id="print-virement-container" className="hidden print:block fixed inset-0 bg-white text-black p-8 font-sans z-50">
-          <div className="max-w-md mx-auto border-2 border-black p-6 space-y-4">
-            <div className="text-center border-b pb-3">
-              <h2 className="text-xl font-bold uppercase tracking-wider">SIDIBÉ MULTI-SERVICES</h2>
-              <p className="text-xs text-gray-600">Commerce Général, Import-Export & Services</p>
-              <p className="text-xs font-bold text-gray-800 mt-1">Boutique: {receiptItem.pointDeVente.nom}</p>
-            </div>
-
-            <div className="text-center py-1 bg-gray-100 border">
-              <h3 className="text-sm font-black uppercase">BORDEREAU DE VERSEMENT ESPÈCES (CAISSE ADMIN)</h3>
-              <p className="text-xs font-mono font-bold mt-0.5">Réf: {receiptItem.reference}</p>
-            </div>
-
-            <div className="text-xs space-y-1.5 border-b pb-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Date & Heure :</span>
-                <span className="font-bold">{new Date(receiptItem.dateCloture).toLocaleString('fr-FR')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Boutique Source :</span>
-                <span className="font-bold">{receiptItem.pointDeVente.nom} ({receiptItem.pointDeVente.codeBoutique})</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Vendeur émetteur :</span>
-                <span className="font-bold">{receiptItem.utilisateur?.nom || 'Vendeur'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Statut :</span>
-                <span className="font-bold uppercase">{receiptItem.statut}</span>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center text-sm font-black py-2 bg-gray-50 border px-3">
-              <span>MONTANT EN ESPÈCES VIRÉ :</span>
-              <span className="text-base">{formatCurrency(receiptItem.soldeReel)}</span>
-            </div>
-
-            {receiptItem.notes && (
-              <p className="text-xs text-gray-700 italic border-t pt-2">Note: {receiptItem.notes}</p>
-            )}
-
-            <div className="grid grid-cols-2 gap-4 pt-6 text-[11px] text-center">
-              <div>
-                <p className="font-semibold mb-8">Signature du Vendeur</p>
-                <div className="border-t border-gray-400 w-24 mx-auto"></div>
-              </div>
-              <div>
-                <p className="font-semibold mb-8">Réceptionnaire Caisse Admin</p>
-                <div className="border-t border-gray-400 w-24 mx-auto"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL CONFIRMATION SUPPRESSION VIREMENT */}
       <AnimatedModal

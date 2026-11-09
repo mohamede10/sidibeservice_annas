@@ -27,6 +27,8 @@ import {
   Banknote,
   ArrowLeftRight,
   Truck,
+  ArrowDownToLine,
+  SendHorizontal,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,6 +53,9 @@ interface BoutiqueBreakdown {
   montantTotalStock: number;
   quantiteTotalStock: number;
   referencesEnStock: number;
+  totalDepenses?: number;
+  totalVirements?: number;
+  totalVirementsRecus?: number;
 }
 
 export default function DashboardPage() {
@@ -68,6 +73,10 @@ export default function DashboardPage() {
       totalDettes: number;
       montantTotalStock: number;
       totalStockArticles: number;
+      totalDepenses?: number;
+      totalVirements?: number;
+      totalVirementsRecus?: number;
+      totalVirementsAttente?: number;
     };
     recentVentes: Array<{
       id: number;
@@ -400,6 +409,106 @@ export default function DashboardPage() {
       </div>
 
       {/* =========================================================================
+          SECTION VIREMENTS — Visible Admin ET Vendeur (vue boutique & globale)
+      ========================================================================= */}
+      {(data?.stats.totalVirements !== undefined || data?.stats.totalDepenses !== undefined) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Montant Viré vers Admin */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="glass-card p-5 rounded-2xl relative overflow-hidden border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider">
+                {isAdmin && !activePointVenteId ? 'Total Espèces Virées' : 'Montant Viré Boutique'}
+              </span>
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <SendHorizontal className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-amber-400">
+                {loading ? '...' : formatCurrency(data?.stats.totalVirements || 0)}
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                {data?.stats.totalVirementsAttente && data.stats.totalVirementsAttente > 0 ? (
+                  <span className="text-amber-300 font-semibold">
+                    Dont {formatCurrency(data.stats.totalVirementsAttente)} en attente
+                  </span>
+                ) : (
+                  'Espèces expédiées vers la caisse Admin'
+                )}
+              </div>
+            </div>
+            <Link href="/virements" className="mt-2 inline-flex items-center gap-1 text-[10px] text-amber-400 hover:underline font-semibold">
+              <span>Voir les virements</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </motion.div>
+
+          {/* Virement Reçu & Encaissé par l'Admin */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.65 }}
+            className="glass-card p-5 rounded-2xl relative overflow-hidden border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-slate-900 to-slate-950"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">
+                {isAdmin && !activePointVenteId ? 'Virements Reçus (Caisse Centrale)' : 'Virements Reçus & Validés'}
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <ShieldCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-emerald-400">
+                {loading ? '...' : formatCurrency(data?.stats.totalVirementsRecus || 0)}
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                Reçu et confirmé dans la caisse centrale Admin
+              </div>
+            </div>
+            <Link href="/virements" className="mt-2 inline-flex items-center gap-1 text-[10px] text-emerald-400 hover:underline font-semibold">
+              <span>Rapprochement caisse</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </motion.div>
+
+          {/* Dépenses Espèces */}
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.7 }}
+            className="glass-card p-5 rounded-2xl relative overflow-hidden border border-rose-500/20 bg-gradient-to-br from-rose-500/5 via-slate-900 to-slate-950"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-rose-400 uppercase tracking-wider">
+                Dépenses Enregistrées
+              </span>
+              <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/20">
+                <ArrowDownToLine className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl sm:text-2xl font-black text-rose-400">
+                {loading ? '...' : formatCurrency(data?.stats.totalDepenses || 0)}
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                Charges et dépenses déduites de la caisse
+              </div>
+            </div>
+            <Link href="/depenses" className="mt-2 inline-flex items-center gap-1 text-[10px] text-rose-400 hover:underline font-semibold">
+              <span>Voir les dépenses</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </Link>
+          </motion.div>
+        </div>
+      )}
+
+      {/* =========================================================================
           POUR L'ADMIN UNIQUEMENT : VUE DÉTAILLÉE PAR BOUTIQUE (CA, DETTES ET STOCK)
       ========================================================================= */}
       {isAdmin && !activePointVenteId && data?.boutiquesBreakdown && data.boutiquesBreakdown.length > 0 && (
@@ -462,7 +571,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Ventes & Dettes */}
+                {/* Ventes & Dettes & Virements */}
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-xs">
                   <div>
                     <span className="text-slate-400 block text-[10px]">Chiffre d&apos;Affaires</span>
@@ -472,9 +581,18 @@ export default function DashboardPage() {
                     <span className="text-slate-400 block text-[10px]">Dettes Restantes</span>
                     <span className="font-black text-rose-400 text-sm">{formatCurrency(b.totalDettes)}</span>
                   </div>
-                  <div className="col-span-2 pt-2 flex items-center justify-between text-[11px] text-slate-400">
-                    <span>{b.nombreVentes} ventes enregistrées</span>
-                    <span className="text-emerald-400 font-semibold">Encaissé : {formatCurrency(b.montantEncaisse)}</span>
+                  {/* Ligne virements & encaissement */}
+                  <div>
+                    <span className="text-amber-400 block text-[10px]">Viré vers Admin</span>
+                    <span className="font-bold text-amber-400 text-xs">{formatCurrency(b.totalVirements || 0)}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-emerald-400 block text-[10px]">Reçu &amp; Validé Admin</span>
+                    <span className="font-bold text-emerald-400 text-xs">{formatCurrency(b.totalVirementsRecus || 0)}</span>
+                  </div>
+                  <div className="col-span-2 pt-1.5 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/60">
+                    <span className="text-rose-300">Dépenses : -{formatCurrency(b.totalDepenses || 0)}</span>
+                    <span className="text-emerald-400 font-semibold">En Caisse : {formatCurrency(b.montantEncaisse)}</span>
                   </div>
                 </div>
               </div>

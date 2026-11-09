@@ -178,8 +178,8 @@ export default function ClientsPage() {
       dateFacture,
       boutique: {
         nom: vente.pointVente?.nom || vente.pointVenteNom || 'Boutique Sidibe Services',
-        ville: vente.pointVente?.ville || 'Kankan',
-        adresse: vente.pointVente?.adresse || 'Centre Commercial',
+        ville: vente.pointVente?.ville || client.ville || 'Guinée',
+        adresse: vente.pointVente?.adresse || '',
         telephone: vente.pointVente?.telephone || '+224 622 48 81 61',
         codeBoutique: vente.pointVente?.codeBoutique,
       },
