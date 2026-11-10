@@ -369,7 +369,14 @@ export default function PosPage() {
         }),
       });
 
-      const json = await res.json();
+      let json: any = {};
+      try {
+        json = await res.json();
+      } catch (parseError) {
+        console.error('Erreur lecture réponse JSON checkout:', parseError);
+        showError('Le serveur n\'a pas renvoyé de réponse valide.', 'Erreur serveur');
+        return;
+      }
       if (json.success) {
         const pdvSale = json.vente?.pointVente || json.pointDeVente;
         const bVille = pdvSale?.ville || user?.boutiqueVille || user?.ville || 'Guinée';

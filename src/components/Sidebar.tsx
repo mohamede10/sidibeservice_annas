@@ -62,6 +62,14 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const displayInitial = displayName[0]?.toUpperCase() || 'A';
   const roleLabel = user?.role === 'ADMIN' ? 'Admin Global' : user?.role === 'GERANT' ? 'Gérant' : 'Vendeur';
 
+  // Les vendeurs ne doivent pas voir le menu Achats Fournisseurs
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.href === '/achats' && !isAdmin && !isGerant) {
+      return false;
+    }
+    return true;
+  });
+
   const renderNavItem = (item: (typeof navItems)[0]) => {
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     const Icon = item.icon;
@@ -157,7 +165,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         {/* Navigation List */}
         <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
           {/* Main Navigation */}
-          {navItems.map(renderNavItem)}
+          {visibleNavItems.map(renderNavItem)}
 
           {/* Admin Section Divider */}
           {(isAdmin || isGerant) && (

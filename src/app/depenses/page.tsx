@@ -17,6 +17,7 @@ import {
   Filter,
   Receipt,
   FileDown,
+  Store,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -79,11 +80,12 @@ interface DepenseFormData {
   beneficiaire: string;
 }
 
-function CreateDepenseModal({ pdvList, onClose, onSuccess, defaultPdvId }: {
+function CreateDepenseModal({ pdvList, onClose, onSuccess, defaultPdvId, isAdmin = false }: {
   pdvList: { id: number; nom: string; codeBoutique: string }[];
   onClose: () => void;
   onSuccess: () => void;
   defaultPdvId?: number;
+  isAdmin?: boolean;
 }) {
   const [form, setForm] = useState<DepenseFormData>({
     pointDeVenteId: defaultPdvId ? String(defaultPdvId) : (pdvList[0]?.id ? String(pdvList[0].id) : ''),
@@ -152,9 +154,19 @@ function CreateDepenseModal({ pdvList, onClose, onSuccess, defaultPdvId }: {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <SelectField label="Boutique *" id="pdv" value={form.pointDeVenteId} onChange={set('pointDeVenteId')}>
-            {pdvList.map((p) => <option key={p.id} value={p.id}>{p.nom} ({p.codeBoutique})</option>)}
-          </SelectField>
+          {!isAdmin && defaultPdvId ? (
+            <div>
+              <label className="text-xs font-bold text-slate-300 block mb-1">Boutique *</label>
+              <div className="w-full px-3 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-amber-300 font-bold flex items-center gap-2">
+                <Store className="w-4 h-4 text-amber-400" />
+                <span>{pdvList.find((p) => p.id === defaultPdvId)?.nom || 'Votre Boutique'}</span>
+              </div>
+            </div>
+          ) : (
+            <SelectField label="Boutique *" id="pdv" value={form.pointDeVenteId} onChange={set('pointDeVenteId')}>
+              {pdvList.map((p) => <option key={p.id} value={p.id}>{p.nom} ({p.codeBoutique})</option>)}
+            </SelectField>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <SelectField label="Catégorie *" id="cat" value={form.categorie} onChange={set('categorie')}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -202,7 +214,10 @@ export default function DepensesPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const targetPdv = filterPdv || (activePointVenteId && !isAdmin ? String(activePointVenteId) : '');
+      const isVendeurOrRestricted = !isAdmin && !!(user?.pointVenteId || activePointVenteId);
+      const targetPdv = isVendeurOrRestricted
+        ? String(user?.pointVenteId || activePointVenteId)
+        : filterPdv;
       const pvParam = targetPdv ? `?pointVenteId=${targetPdv}` : '';
       const [dRes, pRes] = await Promise.all([
         fetch(`/api/depenses${pvParam}`),
@@ -213,7 +228,7 @@ export default function DepensesPage() {
       if (pJson.success) setPdvList(pJson.pointsDeVente || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [filterPdv, activePointVenteId, isAdmin]);
+  }, [filterPdv, activePointVenteId, isAdmin, user?.pointVenteId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -341,21 +356,28 @@ ${d.utilisateur ? `<div class="info-row"><span>Enregistré par :</span><span>${d
         </div>
 
         {/* Boutique filter for Admin */}
-        <div className="relative">
-          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
-          <select
-            value={filterPdv}
-            onChange={(e) => setFilterPdv(e.target.value)}
-            className="pl-9 pr-8 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">Toutes les Boutiques</option>
-            {pdvList.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nom} ({p.codeBoutique})
-              </option>
-            ))}
-          </select>
-        </div>
+        {isAdmin ? (
+          <div className="relative">
+            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
+            <select
+              value={filterPdv}
+              onChange={(e) => setFilterPdv(e.target.value)}
+              className="pl-9 pr-8 py-2.5 rounded-xl bg-slate-900/80 border border-slate-700 text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
+            >
+              <option value="">Toutes les Boutiques</option>
+              {pdvList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom} ({p.codeBoutique})
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-amber-500/30 text-xs font-bold text-amber-300">
+            <Store className="w-4 h-4 text-amber-400" />
+            <span>Boutique : {user?.pointVenteNom || 'Ma Boutique'}</span>
+          </div>
+        )}
       </div>
 
       {/* List */}
@@ -415,7 +437,8 @@ ${d.utilisateur ? `<div class="info-row"><span>Enregistré par :</span><span>${d
         {showCreate && (
           <CreateDepenseModal
             pdvList={pdvList}
-            defaultPdvId={activePointVenteId || undefined}
+            defaultPdvId={user?.pointVenteId || activePointVenteId || undefined}
+            isAdmin={isAdmin}
             onClose={() => setShowCreate(false)}
             onSuccess={fetchData}
           />

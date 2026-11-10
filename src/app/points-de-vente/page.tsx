@@ -41,6 +41,14 @@ interface Vendeur {
   active: boolean;
 }
 
+interface CaisseInfo {
+  soldeCaisse: number;
+  totalEncaisseEspeces: number;
+  totalDepensesEspeces: number;
+  totalVireAdmin: number;
+  totalVireAttente: number;
+}
+
 interface PointDeVente {
   id: number;
   nom: string;
@@ -62,6 +70,7 @@ interface PointDeVente {
     quantite: number;
     references: number;
   };
+  caisseInfo?: CaisseInfo;
 }
 
 const VILLES_GUINEE = [
@@ -422,6 +431,60 @@ function PDVDetailModal({
             </div>
           </div>
 
+          {/* Section Montant de la Caisse (Espèces en Tiroir) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-800/80 to-slate-800/80 border border-amber-500/30 flex items-center justify-between shadow-lg shadow-amber-500/5">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                <Banknote className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-amber-300 uppercase tracking-wide flex items-center gap-1.5">
+                  <span>Montant de la Caisse (Espèces en Tiroir)</span>
+                  {pdv.caisseInfo && pdv.caisseInfo.totalVireAttente > 0 && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">
+                      {formatCurrency(pdv.caisseInfo.totalVireAttente)} en attente
+                    </span>
+                  )}
+                </p>
+                <p className="text-xl font-black text-amber-400">
+                  {formatCurrency(pdv.caisseInfo?.soldeCaisse || 0)}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className={`text-xs font-bold px-3 py-1 rounded-xl border block ${(pdv.caisseInfo?.soldeCaisse || 0) > 0 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
+                {(pdv.caisseInfo?.soldeCaisse || 0) > 0 ? 'À virer vers Admin' : 'Caisse Équilibrée'}
+              </span>
+              <span className="text-[10px] text-slate-400 mt-0.5 block">
+                Viré Admin : {formatCurrency(pdv.caisseInfo?.totalVireAdmin || 0)}
+              </span>
+            </div>
+          </div>
+
+          {/* Grille détaillée Caisse & Virement */}
+          {pdv.caisseInfo && (
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-medium">Recettes Espèces</span>
+                <span className="font-bold text-white text-xs mt-0.5 block">
+                  {formatCurrency(pdv.caisseInfo.totalEncaisseEspeces)}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-medium">Dépenses Déduites</span>
+                <span className="font-bold text-rose-400 text-xs mt-0.5 block">
+                  {formatCurrency(pdv.caisseInfo.totalDepensesEspeces)}
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/60">
+                <span className="text-[10px] text-slate-400 block uppercase font-medium">Viré à l&apos;Admin</span>
+                <span className="font-bold text-emerald-400 text-xs mt-0.5 block">
+                  {formatCurrency(pdv.caisseInfo.totalVireAdmin)}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Stats 30j */}
           <div className="grid grid-cols-2 gap-3">
             <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 text-center">
@@ -779,6 +842,7 @@ export default function PointsDeVentePage() {
 
   // Summary stats
   const totalCA = points.reduce((s, p) => s + (p.stats30j._sum.total || 0), 0);
+  const totalCaisse = points.reduce((s, p) => s + (p.caisseInfo?.soldeCaisse || 0), 0);
   const totalVentes = points.reduce((s, p) => s + p.stats30j._count._all, 0);
   const totalVendeurs = points.reduce((s, p) => s + p._count.vendeurs, 0);
 
@@ -818,10 +882,11 @@ export default function PointsDeVentePage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           { label: 'Boutiques', value: points.length, icon: Store, color: 'text-amber-400' },
           { label: 'CA Total 30j', value: formatCurrency(totalCA), icon: TrendingUp, color: 'text-emerald-400' },
+          { label: 'Caisse Espèces Totale', value: formatCurrency(totalCaisse), icon: Banknote, color: 'text-amber-400' },
           { label: 'Ventes 30j', value: totalVentes, icon: ShoppingCart, color: 'text-blue-400' },
           { label: 'Vendeurs', value: totalVendeurs, icon: Users, color: 'text-purple-400' },
         ].map((card) => (
@@ -940,6 +1005,26 @@ export default function PointsDeVentePage() {
                     <div className="text-right">
                       <span className="text-[11px] font-bold text-white bg-slate-900/90 px-2 py-0.5 rounded-lg border border-slate-700">
                         {p.stockInfo?.quantite || 0} unités
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Caisse Espèces Highlight Card */}
+                  <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <div>
+                        <p className="text-[9px] font-bold text-amber-300 uppercase tracking-wide">
+                          Caisse Espèces (Tiroir)
+                        </p>
+                        <p className="text-sm font-black text-amber-400">
+                          {formatCurrency(p.caisseInfo?.soldeCaisse || 0)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${(p.caisseInfo?.soldeCaisse || 0) > 0 ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+                        {(p.caisseInfo?.soldeCaisse || 0) > 0 ? 'À virer' : 'Équilibré'}
                       </span>
                     </div>
                   </div>

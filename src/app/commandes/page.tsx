@@ -122,7 +122,7 @@ function parseNotes(notes?: string) {
 }
 
 export default function CommandesPage() {
-  const { isAdmin, isGerant } = useAuth();
+  const { user, isAdmin, isGerant, activePointVenteId } = useAuth();
   const { showSuccess, showError } = useToast();
 
   const [commandes, setCommandes] = useState<Commande[]>([]);
@@ -134,11 +134,14 @@ export default function CommandesPage() {
   const [processing, setProcessing] = useState(false);
 
   const canManage = isAdmin || isGerant;
+  const isVendeurOrRestricted = !isAdmin && !!(user?.pointVenteId || activePointVenteId);
+  const targetPdvId = isVendeurOrRestricted ? (user?.pointVenteId || activePointVenteId) : null;
 
   const fetchCommandes = useCallback(async () => {
     try {
       setLoading(true);
-      const url = `/api/boutique/commande?statut=${statutFilter}&all=${statutFilter === '' ? '1' : '0'}`;
+      const pdvParam = targetPdvId ? `&pointVenteId=${targetPdvId}` : '';
+      const url = `/api/boutique/commande?statut=${statutFilter}&all=${statutFilter === '' ? '1' : '0'}${pdvParam}`;
       const res = await fetch(url);
       const json = await res.json();
       if (json.success) {
@@ -158,7 +161,7 @@ export default function CommandesPage() {
     } finally {
       setLoading(false);
     }
-  }, [statutFilter, searchTerm, showError]);
+  }, [statutFilter, searchTerm, showError, targetPdvId]);
 
   useEffect(() => {
     fetchCommandes();

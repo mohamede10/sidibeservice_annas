@@ -18,10 +18,12 @@ export async function GET(request: NextRequest) {
     }
 
     const avecAchats = searchParams.get('avecAchats') === 'true';
+    const pointVenteId = searchParams.get('pointVenteId');
+    const pvId = pointVenteId && !isNaN(parseInt(pointVenteId)) ? parseInt(pointVenteId) : undefined;
 
     if (avecAchats) {
       whereClause.ventes = {
-        some: {},
+        some: pvId ? { pointVenteId: pvId } : {},
       };
     }
 
@@ -29,6 +31,7 @@ export async function GET(request: NextRequest) {
       where: whereClause,
       include: {
         ventes: {
+          where: pvId ? { pointVenteId: pvId } : undefined,
           include: {
             pointVente: { select: { id: true, nom: true, ville: true, adresse: true, telephone: true, codeBoutique: true } },
             factures: {

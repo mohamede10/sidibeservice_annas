@@ -129,18 +129,28 @@ export default function VirementsPage() {
 
   // Printable receipt — géré via printVirementReceipt() dans invoicePdf.ts
 
+  // Sécurisation stricte : Le vendeur (non-admin) ne doit voir QUE sa propre boutique
+  const isVendeurOrRestricted = !isAdmin && !!(user?.pointVenteId || activePointVenteId);
+  const userAssignedPdvId = user?.pointVenteId || activePointVenteId;
+
   const fetchVirements = async () => {
     try {
       setLoading(true);
-      const params = filterPdv ? `?pointVenteId=${filterPdv}` : '';
+      const effectivePdvId = isVendeurOrRestricted ? String(userAssignedPdvId) : filterPdv;
+      const params = effectivePdvId ? `?pointVenteId=${effectivePdvId}` : '';
       const res = await fetch(`/api/virements${params}`);
-      const json = await res.json();
-      if (json.success) {
+      const json = await res.json().catch(() => null);
+      if (json && json.success) {
         setVirements(json.virements || []);
         setPointsDeVente(json.pointsDeVente || []);
         setVendeurs(json.vendeurs || []);
         setStats(json.statistiques || {});
-        setSynthese(json.syntheseParBoutique || []);
+        const rawSynthese: SyntheseBoutique[] = json.syntheseParBoutique || [];
+        setSynthese(
+          isVendeurOrRestricted && userAssignedPdvId
+            ? rawSynthese.filter((s) => s.pointDeVente.id === userAssignedPdvId)
+            : rawSynthese
+        );
       }
     } catch (err) {
       console.error(err);
@@ -151,24 +161,28 @@ export default function VirementsPage() {
 
   useEffect(() => {
     fetchVirements();
-  }, [filterPdv]);
+  }, [filterPdv, user?.pointVenteId, isAdmin, activePointVenteId]);
 
   // Set default boutique and seller when modal opens
   useEffect(() => {
     if (showModal) {
-      const myPdv = user?.pointVenteId || activePointVenteId || (pointsDeVente[0]?.id ? String(pointsDeVente[0].id) : '');
+      const myPdv = userAssignedPdvId || (pointsDeVente[0]?.id ? String(pointsDeVente[0].id) : '');
       if (myPdv) setSelectedPdvId(String(myPdv));
       if (user?.id) setSelectedVendeurId(String(user.id));
     }
-  }, [showModal, user, activePointVenteId, pointsDeVente]);
+  }, [showModal, user, userAssignedPdvId, pointsDeVente]);
 
   // Current theoretical cash for selected boutique in modal
-  const currentBoutiqueSynth = synthese.find((s) => String(s.pointDeVente.id) === selectedPdvId);
+  const effectiveModalPdvId = isVendeurOrRestricted ? String(userAssignedPdvId) : selectedPdvId;
+  const currentBoutiqueSynth = synthese.find((s) => String(s.pointDeVente.id) === effectiveModalPdvId);
   const soldeDisponibleBoutique = currentBoutiqueSynth ? Math.max(0, currentBoutiqueSynth.ecartRestant) : 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPdvId || !selectedVendeurId || !montant || parseFloat(montant) <= 0) {
+    const targetPdvId = isVendeurOrRestricted ? userAssignedPdvId : selectedPdvId;
+    const targetVendeurId = isVendeurOrRestricted ? user?.id : selectedVendeurId;
+
+    if (!targetPdvId || !targetVendeurId || !montant || parseFloat(montant) <= 0) {
       showWarning('Veuillez remplir tous les champs obligatoires.');
       return;
     }
@@ -179,26 +193,26 @@ export default function VirementsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pointDeVenteId: selectedPdvId,
-          utilisateurId: selectedVendeurId,
+          pointDeVenteId: targetPdvId,
+          utilisateurId: targetVendeurId,
           montant: parseFloat(montant),
           notes,
           statut: isAdmin ? 'VALIDEE' : 'EN_ATTENTE',
         }),
       });
-      const json = await res.json();
-      if (json.success) {
+      const json = await res.json().catch(() => null);
+      if (json && json.success) {
         setShowModal(false);
         setMontant('');
         setNotes('');
         fetchVirements();
         showSuccess('Virement enregistré avec succès.', 'Virement créé');
       } else {
-        showError(json.error || 'Erreur', 'Erreur virement');
+        showError(json?.error || 'Erreur lors de l\'enregistrement du virement', 'Erreur virement');
       }
     } catch (err) {
       console.error(err);
-      showError('Erreur réseau', 'Erreur réseau');
+      showError('Erreur réseau lors de l\'enregistrement du virement', 'Erreur réseau');
     } finally {
       setSubmitting(false);
     }
@@ -360,10 +374,14 @@ export default function VirementsPage() {
       <div className="space-y-3">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Store className="w-5 h-5 text-amber-400" />
-          Rapprochement par Boutique
+          {isVendeurOrRestricted
+            ? `Caisse & Rapprochement de votre Boutique (${user?.pointVenteNom || 'Ma Boutique'})`
+            : 'Rapprochement par Boutique'}
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {synthese.map((s) => (
+          {synthese
+            .filter((s) => !isVendeurOrRestricted || s.pointDeVente.id === userAssignedPdvId)
+            .map((s) => (
             <div
               key={s.pointDeVente.id}
               className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3 hover:border-slate-700 transition-colors"
@@ -440,21 +458,28 @@ export default function VirementsPage() {
           />
         </div>
 
-        <div className="relative">
-          <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
-          <select
-            value={filterPdv}
-            onChange={(e) => setFilterPdv(e.target.value)}
-            className="pl-9 pr-8 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">Toutes les Boutiques</option>
-            {pointsDeVente.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nom}
-              </option>
-            ))}
-          </select>
-        </div>
+        {isAdmin ? (
+          <div className="relative">
+            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400 pointer-events-none" />
+            <select
+              value={filterPdv}
+              onChange={(e) => setFilterPdv(e.target.value)}
+              className="pl-9 pr-8 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs font-bold text-amber-300 focus:outline-none cursor-pointer"
+            >
+              <option value="">Toutes les Boutiques</option>
+              {pointsDeVente.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-amber-500/30 text-xs font-bold text-amber-300 shadow-sm">
+            <Store className="w-4 h-4 text-amber-400" />
+            <span>Boutique : {user?.pointVenteNom || 'Ma Boutique'}</span>
+          </div>
+        )}
       </div>
 
       {/* History of Remittances */}
@@ -618,37 +643,51 @@ export default function VirementsPage() {
                 {/* Boutique */}
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-1">Boutique Émettrice *</label>
-                  <select
-                    value={selectedPdvId}
-                    onChange={(e) => setSelectedPdvId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-400"
-                  >
-                    <option value="">-- Sélectionner --</option>
-                    {pointsDeVente.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.nom} ({p.codeBoutique})
-                      </option>
-                    ))}
-                  </select>
+                  {isVendeurOrRestricted ? (
+                    <div className="w-full px-3 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-amber-300 font-bold flex items-center gap-2">
+                      <Store className="w-4 h-4 text-amber-400" />
+                      <span>{user?.pointVenteNom || 'Votre Boutique'}</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedPdvId}
+                      onChange={(e) => setSelectedPdvId(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="">-- Sélectionner --</option>
+                      {pointsDeVente.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nom} ({p.codeBoutique})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Vendeur émetteur */}
                 <div>
                   <label className="text-xs font-bold text-slate-300 block mb-1">Vendeur / Responsable *</label>
-                  <select
-                    value={selectedVendeurId}
-                    onChange={(e) => setSelectedVendeurId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-400"
-                  >
-                    <option value="">-- Sélectionner --</option>
-                    {vendeurs.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.nom} ({v.role})
-                      </option>
-                    ))}
-                  </select>
+                  {isVendeurOrRestricted ? (
+                    <div className="w-full px-3 py-2.5 rounded-xl bg-slate-950/80 border border-slate-700 text-sm text-white font-medium flex items-center gap-2">
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span>{user?.nom || 'Vous-même'}</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedVendeurId}
+                      onChange={(e) => setSelectedVendeurId(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm text-white focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="">-- Sélectionner --</option>
+                      {vendeurs.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.nom} ({v.role})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Info solde disponible */}

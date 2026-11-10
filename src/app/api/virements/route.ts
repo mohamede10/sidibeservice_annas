@@ -70,16 +70,22 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // 4. Points de vente
+    // 4. Points de vente (filtré si boutique spécifique demandée)
     const pointsDeVente = await prisma.pointDeVente.findMany({
-      where: { active: true },
+      where: {
+        active: true,
+        ...(pvId ? { id: pvId } : {}),
+      },
       select: { id: true, nom: true, codeBoutique: true, ville: true, telephone: true },
       orderBy: { nom: 'asc' },
     });
 
-    // 5. Active sellers
+    // 5. Active sellers (filtré si boutique spécifique)
     const vendeurs = await prisma.user.findMany({
-      where: { active: true },
+      where: {
+        active: true,
+        ...(pvId ? { pointVenteId: pvId } : {}),
+      },
       select: { id: true, nom: true, role: true, pointVenteId: true },
       orderBy: { nom: 'asc' },
     });
@@ -204,20 +210,27 @@ export async function POST(req: NextRequest) {
     const pdvId = parseInt(pointDeVenteId);
     const uId = parseInt(utilisateurId);
 
-    // Compute current theoretical sales for that boutique
-    const ventes = await prisma.vente.findMany({
-      where: { pointVenteId: pdvId, modePaiement: 'ESPECES' },
-      select: { montantPaye: true },
-    });
-    const totalEspecesVente = ventes.reduce((sum, v) => sum + v.montantPaye, 0);
+    // Calcul rapide des ventes, dépenses et précédents virements de cette boutique
+    const [ventesAgg, depensesAgg, prevVirementsAgg] = await Promise.all([
+      prisma.vente.aggregate({
+        where: { pointVenteId: pdvId, modePaiement: 'ESPECES' },
+        _sum: { montantPaye: true },
+      }),
+      prisma.depense.aggregate({
+        where: { pointDeVenteId: pdvId, modePaiement: 'ESPECES' },
+        _sum: { montant: true },
+      }),
+      prisma.clotureCaisse.aggregate({
+        where: { pointDeVenteId: pdvId },
+        _sum: { soldeReel: true },
+      }),
+    ]);
 
-    const prevVirements = await prisma.clotureCaisse.findMany({
-      where: { pointDeVenteId: pdvId },
-      select: { soldeReel: true },
-    });
-    const totalDejaVire = prevVirements.reduce((sum, v) => sum + v.soldeReel, 0);
+    const totalEspecesVente = ventesAgg._sum.montantPaye || 0;
+    const totalDepenses = depensesAgg._sum.montant || 0;
+    const totalDejaVire = prevVirementsAgg._sum.soldeReel || 0;
 
-    const soldeTheoriqueDispo = Math.max(0, totalEspecesVente - totalDejaVire);
+    const soldeTheoriqueDispo = Math.max(0, totalEspecesVente - totalDepenses - totalDejaVire);
     const ecart = soldeTheoriqueDispo - montantVirer;
 
     const ref = `VIR-${Date.now().toString().slice(-8)}`;

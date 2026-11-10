@@ -8,10 +8,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const statut = searchParams.get('statut') || 'EN_ATTENTE';
     const all = searchParams.get('all') === '1';
+    const pointVenteId = searchParams.get('pointVenteId');
 
     const whereClause: Record<string, unknown> = {
       typeVente: 'COMMANDE_EN_LIGNE',
     };
+
+    if (pointVenteId && !isNaN(parseInt(pointVenteId))) {
+      whereClause.pointVenteId = parseInt(pointVenteId);
+    }
 
     if (!all) {
       whereClause.statutPaiement = statut;

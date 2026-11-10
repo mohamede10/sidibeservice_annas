@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Truck,
@@ -92,7 +93,7 @@ interface CartLigne {
 }
 
 export default function AchatsPage() {
-  const { user, activePointVenteId } = useAuth();
+  const { user, isAdmin, isGerant, activePointVenteId } = useAuth();
   const { showSuccess, showError, showWarning } = useToast();
 
   const [achats, setAchats] = useState<Achat[]>([]);
@@ -382,6 +383,27 @@ export default function AchatsPage() {
   const filteredProduits = produits.filter((p) =>
     p.nom.toLowerCase().includes(produitSearch.toLowerCase())
   );
+
+  // Accès strictement réservé à l'Admin et aux Gérants
+  if (user && !isAdmin && !isGerant) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
+        <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mb-4 shadow-lg shadow-rose-500/5">
+          <Truck className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2">Accès non autorisé</h2>
+        <p className="text-slate-400 text-sm max-w-md mb-6">
+          Le module des achats fournisseurs est réservé à l&apos;administration centrale et aux gérants.
+        </p>
+        <Link
+          href="/pos"
+          className="px-5 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm hover:bg-amber-400 transition-colors shadow-lg shadow-amber-500/10"
+        >
+          Retour à la Caisse (POS)
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

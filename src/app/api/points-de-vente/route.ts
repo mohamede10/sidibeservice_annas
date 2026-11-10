@@ -22,34 +22,76 @@ export async function GET() {
     const trente = new Date();
     trente.setDate(trente.getDate() - 30);
 
-    const ventesStats = await prisma.vente.groupBy({
-      by: ['pointVenteId'],
-      where: { dateVente: { gte: trente } },
-      _sum: { total: true, montantPaye: true },
-      _count: { _all: true },
-    });
+    const [
+      ventesStats,
+      stocksParPoint,
+      ventesEspecesGrouped,
+      depensesEspecesGrouped,
+      virementsGrouped,
+      paiementsDetteEspeces,
+    ] = await Promise.all([
+      prisma.vente.groupBy({
+        by: ['pointVenteId'],
+        where: { dateVente: { gte: trente } },
+        _sum: { total: true, montantPaye: true },
+        _count: { _all: true },
+      }),
+      prisma.stockParPoint.findMany({
+        where: {
+          variante: {
+            produit: {
+              actif: true,
+            },
+          },
+        },
+        include: {
+          variante: {
+            select: {
+              prix: true,
+              coutAchat: true,
+            },
+          },
+        },
+      }),
+      // Toutes les ventes en espèces pour la caisse
+      prisma.vente.groupBy({
+        by: ['pointVenteId'],
+        where: {
+          modePaiement: 'ESPECES',
+          OR: [
+            { typeVente: { not: 'COMMANDE_EN_LIGNE' } },
+            { typeVente: 'COMMANDE_EN_LIGNE', statutPaiement: 'PAYE' },
+          ],
+        },
+        _sum: { montantPaye: true },
+      }),
+      // Dépenses espèces par point de vente
+      prisma.depense.groupBy({
+        by: ['pointDeVenteId'],
+        where: {
+          modePaiement: 'ESPECES',
+        },
+        _sum: { montant: true },
+      }),
+      // Virements (clôtures de caisse) par point de vente et statut
+      prisma.clotureCaisse.groupBy({
+        by: ['pointDeVenteId', 'statut'],
+        _sum: { soldeReel: true },
+      }),
+      // Recouvrements de dettes reçus en espèces
+      prisma.paiementDette.findMany({
+        where: { modePaiement: 'ESPECES' },
+        select: {
+          montant: true,
+          vente: { select: { pointVenteId: true, modePaiement: true } },
+          recuPar: { select: { pointVenteId: true } },
+        },
+      }),
+    ]);
 
     const statsByPDV = Object.fromEntries(ventesStats.map((v) => [v.pointVenteId, v]));
 
     // Calculer le montant et la quantité de stock par boutique (produits actifs uniquement)
-    const stocksParPoint = await prisma.stockParPoint.findMany({
-      where: {
-        variante: {
-          produit: {
-            actif: true,
-          },
-        },
-      },
-      include: {
-        variante: {
-          select: {
-            prix: true,
-            coutAchat: true,
-          },
-        },
-      },
-    });
-
     const stockStatsByPDV: Record<number, { montant: number; quantite: number; references: number }> = {};
     for (const p of pointsDeVente) {
       stockStatsByPDV[p.id] = { montant: 0, quantite: 0, references: 0 };
@@ -65,11 +107,61 @@ export async function GET() {
       }
     }
 
-    const enriched = pointsDeVente.map((p) => ({
-      ...p,
-      stats30j: statsByPDV[p.id] ?? { _sum: { total: 0, montantPaye: 0 }, _count: { _all: 0 } },
-      stockInfo: stockStatsByPDV[p.id] ?? { montant: 0, quantite: 0, references: 0 },
-    }));
+    // Calculer la caisse (espèces en tiroir, virements, dépenses) par boutique
+    const ventesEspByPDV: Record<number, number> = {};
+    for (const ve of ventesEspecesGrouped) {
+      if (ve.pointVenteId) {
+        ventesEspByPDV[ve.pointVenteId] = ve._sum.montantPaye || 0;
+      }
+    }
+
+    const depensesEspByPDV: Record<number, number> = {};
+    for (const de of depensesEspecesGrouped) {
+      if (de.pointDeVenteId) {
+        depensesEspByPDV[de.pointDeVenteId] = de._sum.montant || 0;
+      }
+    }
+
+    const virValideByPDV: Record<number, number> = {};
+    const virAttenteByPDV: Record<number, number> = {};
+    for (const vir of virementsGrouped) {
+      if (vir.pointDeVenteId) {
+        if (vir.statut === 'VALIDEE') {
+          virValideByPDV[vir.pointDeVenteId] = (virValideByPDV[vir.pointDeVenteId] || 0) + (vir._sum.soldeReel || 0);
+        } else if (vir.statut === 'EN_ATTENTE') {
+          virAttenteByPDV[vir.pointDeVenteId] = (virAttenteByPDV[vir.pointDeVenteId] || 0) + (vir._sum.soldeReel || 0);
+        }
+      }
+    }
+
+    const recouvrementEspByPDV: Record<number, number> = {};
+    for (const p of paiementsDetteEspeces) {
+      const pPdvId = p.recuPar?.pointVenteId || p.vente?.pointVenteId;
+      if (pPdvId && (!p.vente || p.vente.modePaiement !== 'ESPECES')) {
+        recouvrementEspByPDV[pPdvId] = (recouvrementEspByPDV[pPdvId] || 0) + p.montant;
+      }
+    }
+
+    const enriched = pointsDeVente.map((p) => {
+      const totalEncaisseEspeces = (ventesEspByPDV[p.id] || 0) + (recouvrementEspByPDV[p.id] || 0);
+      const totalDepensesEspeces = depensesEspByPDV[p.id] || 0;
+      const totalVireAdmin = virValideByPDV[p.id] || 0;
+      const totalVireAttente = virAttenteByPDV[p.id] || 0;
+      const soldeCaisse = Math.max(0, totalEncaisseEspeces - totalDepensesEspeces - totalVireAdmin - totalVireAttente);
+
+      return {
+        ...p,
+        stats30j: statsByPDV[p.id] ?? { _sum: { total: 0, montantPaye: 0 }, _count: { _all: 0 } },
+        stockInfo: stockStatsByPDV[p.id] ?? { montant: 0, quantite: 0, references: 0 },
+        caisseInfo: {
+          soldeCaisse,
+          totalEncaisseEspeces,
+          totalDepensesEspeces,
+          totalVireAdmin,
+          totalVireAttente,
+        },
+      };
+    });
 
     return NextResponse.json({ success: true, pointsDeVente: enriched });
   } catch (error) {

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useToast } from '@/contexts/ToastContext';
+import { useAuth } from '@/contexts/AuthContext';
 import AnimatedModal from '@/components/AnimatedModal';
 import { printInvoice, sendInvoiceViaWhatsApp, downloadInvoicePdf, getEmailInvoiceUrl, InvoiceData } from '@/lib/invoicePdf';
 
@@ -83,6 +84,7 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  const { user, isAdmin, activePointVenteId } = useAuth();
   const { showSuccess, showError, showWarning } = useToast();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,12 +103,15 @@ export default function ClientsPage() {
   const [ville, setVille] = useState('Kankan');
   const [submitting, setSubmitting] = useState(false);
 
+  const targetPdv = !isAdmin && (user?.pointVenteId || activePointVenteId) ? (user?.pointVenteId || activePointVenteId) : null;
+
   const fetchClients = async () => {
     try {
       setLoading(true);
+      const pdvParam = targetPdv ? `&pointVenteId=${targetPdv}` : '';
       const url = `/api/clients?q=${encodeURIComponent(searchTerm)}${
         filterPurchasesOnly ? '&avecAchats=true' : ''
-      }`;
+      }${pdvParam}`;
       const res = await fetch(url);
       const json = await res.json();
       if (json.success) {
@@ -122,7 +127,7 @@ export default function ClientsPage() {
 
   useEffect(() => {
     fetchClients();
-  }, [filterPurchasesOnly]);
+  }, [filterPurchasesOnly, targetPdv]);
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
