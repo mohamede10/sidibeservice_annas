@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { notifyAdminLowStock } from '@/lib/sms';
+import { notifyAdminLowStockEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -277,9 +278,10 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    // Déclencher les alertes SMS hors de la transaction DB pour ne pas la bloquer
+    // Déclencher les alertes SMS et Email hors de la transaction DB pour ne pas la bloquer
     for (const alert of lowStockAlerts) {
       notifyAdminLowStock(alert).catch((e) => console.error('Erreur SMS stock bas POS:', e));
+      notifyAdminLowStockEmail(alert).catch((e) => console.error('Erreur Email stock bas POS:', e));
     }
 
     return NextResponse.json({

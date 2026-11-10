@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { notifyAdminLowStock } from '@/lib/sms';
+import { notifyAdminLowStockEmail } from '@/lib/email';
 
 export async function POST(request: NextRequest) {
   try {
@@ -135,7 +136,7 @@ export async function POST(request: NextRequest) {
               },
             });
 
-            // Alerte SMS stock faible si <= 10
+            // Alerte SMS et Email stock faible si <= 10
             if (stockBoutiqueApres <= 10) {
               notifyAdminLowStock({
                 produitNom: v.produit?.nom || ligne.nomProduit,
@@ -143,6 +144,13 @@ export async function POST(request: NextRequest) {
                 quantiteRestante: stockBoutiqueApres,
                 boutiqueNom: pvNom,
               }).catch((e) => console.error('Erreur SMS Low Stock:', e));
+
+              notifyAdminLowStockEmail({
+                produitNom: v.produit?.nom || ligne.nomProduit,
+                varianteInfo: `${v.taille || ''} ${v.couleur || ''}`.trim(),
+                quantiteRestante: stockBoutiqueApres,
+                boutiqueNom: pvNom,
+              }).catch((e) => console.error('Erreur Email Low Stock:', e));
             }
           }
         }

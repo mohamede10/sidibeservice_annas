@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { notifyAdminNewOrder } from '@/lib/sms';
+import { notifyAdminNewOrderEmail } from '@/lib/email';
 
 // GET - Lister les commandes en ligne (admin)
 export async function GET(request: NextRequest) {
@@ -196,6 +197,21 @@ export async function POST(request: NextRequest) {
         prix: parseFloat(String(i.prix || 0)),
       })),
     }).catch((e) => console.error('Erreur SMS Admin Commande:', e));
+
+    // Envoyer l'Email de notification à l'administrateur (sans bloquer la réponse)
+    notifyAdminNewOrderEmail({
+      reference: commande.reference,
+      clientNom: nomClient,
+      telephone: telephoneClient,
+      ville,
+      adresse,
+      total: totalCommande,
+      items: items.map((i: { nomProduit?: string; nom?: string; quantite?: number | string; prix?: number | string }) => ({
+        nom: i.nomProduit || i.nom || 'Article',
+        quantite: parseInt(String(i.quantite || 1)),
+        prix: parseFloat(String(i.prix || 0)),
+      })),
+    }).catch((e) => console.error('Erreur Email Admin Commande:', e));
 
     return NextResponse.json({
       success: true,

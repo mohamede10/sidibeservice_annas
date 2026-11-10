@@ -379,7 +379,7 @@ export async function sendInvoiceViaWhatsApp(data: InvoiceData): Promise<{
       : `224${phone}`
     : '';
 
-  const accompagnementMessage = `Bonjour *${data.client.nom}*,\n\nVeuillez trouver ci-joint votre *facture officielle en format PDF* de chez *Sidibe Multi-Services* (${data.boutique.nom}).\n\n📄 *Facture N° :* ${data.numeroFacture}\n🔖 *Réf Vente :* ${data.referenceVente}\n📅 *Date :* ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\n💰 *Total TTC :* ${formatGNF(data.total)}\n✅ *Montant réglé :* ${formatGNF(data.montantPaye)}${data.montantRestant > 0 ? `\n⚠️ *Reste à payer :* ${formatGNF(data.montantRestant)}` : ''}\n💳 *Mode :* ${data.modePaiement}\n\n🟠 *Paiement Orange Money :* Code Marchand 622 48 81 61 (*144*4*4#)\n\nMerci pour votre fidélité ! Pour toute question, contactez-nous au ${data.boutique.telephone || '+224 622 48 81 61'}.`;
+  const accompagnementMessage = `Bonjour *${data.client.nom}*,\n\nVeuillez trouver ci-joint votre *facture officielle en format PDF* de chez *Sidibe Multi-Services* (${data.boutique.nom}).\n\n📄 *Facture N° :* ${data.numeroFacture}\n🔖 *Réf Vente :* ${data.referenceVente}\n📅 *Date :* ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\n *Total TTC :* ${formatGNF(data.total)}\n✅ *Montant réglé :* ${formatGNF(data.montantPaye)}${data.montantRestant > 0 ? `\n⚠️ *Reste à payer :* ${formatGNF(data.montantRestant)}` : ''}\n💳 *Mode :* ${data.modePaiement}\n\n🟠 *Paiement Orange Money :* Code Marchand 622 48 81 61 (*144*4*4#)\n\nMerci pour votre fidélité ! Pour toute question, contactez-nous au ${data.boutique.telephone || '+224 622 48 81 61'}.`;
 
   const waUrl = formattedPhone
     ? `https://wa.me/${formattedPhone}?text=${encodeURIComponent(accompagnementMessage)}`
@@ -780,7 +780,7 @@ export function printVirementReceipt(data: VirementReceiptData) {
 
     <!-- Titre document -->
     <div class="doc-title">
-      <h2>💰 Bordereau de Versement Espèces — Caisse Admin</h2>
+      <h2>Bordereau de Versement Espèces — Caisse Admin</h2>
       <p>Document officiel de transfert de fonds entre la boutique et la caisse centrale</p>
     </div>
 
@@ -865,7 +865,7 @@ export function printVirementReceipt(data: VirementReceiptData) {
 
     ${data.notes ? `
     <div class="notes-box">
-      <strong>📝 Notes / Motif :</strong>
+      <strong> Notes / Motif :</strong>
       ${data.notes}
     </div>
     ` : ''}
@@ -915,7 +915,7 @@ export function getWhatsAppInvoiceUrl(data: InvoiceData): string {
   const phone = (data.client.telephone || '').replace(/[^0-9]/g, '');
   const formattedPhone = phone.startsWith('224') ? phone : `224${phone}`;
 
-  const message = `Bonjour ${data.client.nom},\n\nVoici votre facture de chez *Sidibe Services* (${data.boutique.nom}) :\n\n📄 *Facture N° :* ${data.numeroFacture}\n🔖 *Réf Vente :* ${data.referenceVente}\n📅 *Date :* ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\n\n*Articles commandés :*\n${data.lignes.map((l) => `• ${l.designation} (${l.varianteInfo || 'Standard'}) x${l.quantite} = ${formatGNF(l.totalLigne)}`).join('\n')}\n\n💰 *Total :* ${formatGNF(data.total)}\n✅ *Montant réglé :* ${formatGNF(data.montantPaye)}${data.montantRestant > 0 ? `\n⚠️ *Reste à payer :* ${formatGNF(data.montantRestant)}` : ''}\n💳 *Mode :* ${data.modePaiement}\n\n🟠 *Paiement Orange Money :* Code Marchand 622 48 81 61\n\nMerci pour votre fidélité ! Pour toute question, contactez-nous au ${data.boutique.telephone || '+224 622 48 81 61'}.`;
+  const message = `Bonjour ${data.client.nom},\n\nVoici votre facture de chez *Sidibe Services* (${data.boutique.nom}) :\n\n📄 *Facture N° :* ${data.numeroFacture}\n🔖 *Réf Vente :* ${data.referenceVente}\n *Date :* ${new Date(data.dateFacture).toLocaleDateString('fr-FR')}\n\n*Articles commandés :*\n${data.lignes.map((l) => `• ${l.designation} (${l.varianteInfo || 'Standard'}) x${l.quantite} = ${formatGNF(l.totalLigne)}`).join('\n')}\n\n *Total :* ${formatGNF(data.total)}\n✅ *Montant réglé :* ${formatGNF(data.montantPaye)}${data.montantRestant > 0 ? `\n⚠️ *Reste à payer :* ${formatGNF(data.montantRestant)}` : ''}\n💳 *Mode :* ${data.modePaiement}\n\n🟠 *Paiement Orange Money :* Code Marchand 622 48 81 61\n\nMerci pour votre fidélité ! Pour toute question, contactez-nous au ${data.boutique.telephone || '+224 622 48 81 61'}.`;
 
   return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
 }

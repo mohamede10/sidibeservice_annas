@@ -29,6 +29,7 @@ import { formatCurrency } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import {
   printInvoice,
   sendInvoiceViaWhatsApp,
@@ -85,6 +86,7 @@ interface Client {
 export default function PosPage() {
   const { showSuccess, showError, showWarning } = useToast();
   const { user, activePointVenteId, activePointVenteNom, isVendeur } = useAuth();
+  const { settings } = useSettings();
 
   const targetPointVenteId = isVendeur
     ? (user?.pointVenteId ?? activePointVenteId)
@@ -1045,13 +1047,13 @@ export default function PosPage() {
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-3">
                 <img
-                  src="/img/logo.jpeg"
-                  alt="Logo Sidibé Services"
+                  src={settings.logoUrl || '/img/logo.jpeg'}
+                  alt={settings.companyName || 'Logo Sidibé Services'}
                   className="w-12 h-12 rounded-xl object-cover border border-amber-500/30 shadow-sm"
                 />
                 <div className="text-left">
                   <h2 className="text-lg font-black tracking-wide text-slate-900 flex items-center gap-1.5">
-                    SIDIBE <span className="text-amber-600">SERVICES</span>
+                    {settings.companyName || 'SIDIBE SERVICES'}
                   </h2>
                   <p className="text-xs font-bold text-slate-700">{completedSale?.boutiqueNom || 'Boutique'}</p>
                   <p className="text-[11px] text-slate-500">

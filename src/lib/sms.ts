@@ -194,7 +194,7 @@ export async function notifyAdminVirement(virement: {
   notes?: string;
 }) {
   const statutLabel = virement.statut === 'VALIDEE' ? 'VALIDÉ ✓' : 'EN ATTENTE ⏳';
-  const message = `💰 VIREMENT CAISSE [${virement.reference}] — ${statutLabel}\nBoutique : ${virement.boutiqueNom}\nVendeur : ${virement.vendeurNom}\nMontant viré : ${virement.montant.toLocaleString('fr-FR')} GNF\n${virement.notes ? `Note : ${virement.notes}` : ''}\nVérifiez et validez dans la Caisse de Virement de l'ERP.`;
+  const message = ` VIREMENT CAISSE [${virement.reference}] — ${statutLabel}\nBoutique : ${virement.boutiqueNom}\nVendeur : ${virement.vendeurNom}\nMontant viré : ${virement.montant.toLocaleString('fr-FR')} GNF\n${virement.notes ? `Note : ${virement.notes}` : ''}\nVérifiez et validez dans la Caisse de Virement de l'ERP.`;
 
   return sendSms({
     to: ADMIN_PHONE_SMS,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { notifyAdminVirement } from '@/lib/sms';
+import { notifyAdminVirementEmail } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   try {
@@ -254,7 +255,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Alerte SMS Admin lors du virement
+    // Alerte SMS & Email Admin lors du virement
     notifyAdminVirement({
       reference: virement.reference,
       boutiqueNom: virement.pointDeVente.nom,
@@ -263,6 +264,15 @@ export async function POST(req: NextRequest) {
       statut: virement.statut,
       notes: notes || undefined,
     }).catch((e) => console.error('Erreur SMS Virement POST:', e));
+
+    notifyAdminVirementEmail({
+      reference: virement.reference,
+      boutiqueNom: virement.pointDeVente.nom,
+      vendeurNom: virement.utilisateur.nom,
+      montant: virement.soldeReel,
+      statut: virement.statut,
+      notes: notes || undefined,
+    }).catch((e) => console.error('Erreur Email Virement POST:', e));
 
     return NextResponse.json({ success: true, virement });
   } catch (error) {
@@ -292,7 +302,7 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
-    // Alerte SMS Admin lors du virement
+    // Alerte SMS & Email Admin lors du virement
     notifyAdminVirement({
       reference: virement.reference,
       boutiqueNom: virement.pointDeVente.nom,
@@ -301,6 +311,15 @@ export async function PATCH(req: NextRequest) {
       statut: virement.statut,
       notes: notes || undefined,
     }).catch((e) => console.error('Erreur SMS Virement POST:', e));
+
+    notifyAdminVirementEmail({
+      reference: virement.reference,
+      boutiqueNom: virement.pointDeVente.nom,
+      vendeurNom: virement.utilisateur.nom,
+      montant: virement.soldeReel,
+      statut: virement.statut,
+      notes: notes || undefined,
+    }).catch((e) => console.error('Erreur Email Virement POST:', e));
 
     return NextResponse.json({ success: true, virement });
   } catch (error) {

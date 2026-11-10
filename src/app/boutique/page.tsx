@@ -38,6 +38,7 @@ import {
 import { formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import PWAInstallPrompt, { InstallAppButton } from '@/components/PWAInstallPrompt';
 
 interface Variante {
@@ -141,6 +142,7 @@ const VILLES_GUINEE = [
 
 export default function BoutiqueVitrinePage() {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const { showSuccess, showError, showWarning } = useToast();
 
   // Produits et données
@@ -418,19 +420,22 @@ export default function BoutiqueVitrinePage() {
           {/* Logo et Nom de l'Enseigne */}
           <Link href="/boutique" className="flex items-center gap-3 group">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-yellow-600 p-0.5 shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#0b101b] rounded-[14px] flex items-center justify-center">
+              <div className="w-full h-full bg-[#0b101b] rounded-[14px] flex items-center justify-center overflow-hidden">
                 <img
-                src="/img/logo.jpeg"
-                alt="Logo SIDIBE SERVICE"
-                className="w-full h-full object-cover"
-              />
+                  src={settings.logoUrl || '/img/logo.jpeg'}
+                  alt={settings.companyName || 'Logo SIDIBE SERVICES'}
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                </div>
+                <span className="font-extrabold text-base tracking-wide text-white group-hover:text-amber-400 transition-colors">
+                  {settings.companyName || 'SIDIBE SERVICES'}
+                </span>
+              </div>
               <p className="text-[11px] text-slate-400 -mt-0.5 hidden xs:block">
-                Décoration • Tapis • Linge de Lit • Intérieur
+                {settings.description || 'Décoration • Tapis • Linge de Lit • Intérieur'}
               </p>
             </div>
           </Link>

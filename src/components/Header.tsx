@@ -18,8 +18,12 @@ import {
   Banknote,
   ShoppingBag,
   ExternalLink,
+  Sun,
+  Moon,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { InstallAppButton } from '@/components/PWAInstallPrompt';
 
 interface HeaderProps {
@@ -40,6 +44,7 @@ interface NotificationItem {
 
 export default function Header({ onMenuClick }: HeaderProps) {
   const { user, activePointVenteNom, logout, isAdmin } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -219,6 +224,24 @@ export default function Header({ onMenuClick }: HeaderProps) {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Theme Toggle (Dark / Light) */}
+        <button
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Passer en Mode Clair' : 'Passer en Mode Sombre'}
+          className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-amber-400 hover:bg-slate-800 transition-colors"
+        >
+          {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
+        </button>
+
+        {/* Paramètres Link */}
+        <Link
+          href="/parametres"
+          title="Paramètres de l'application"
+          className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+        >
+          <Settings className="w-4 h-4" />
+        </Link>
 
         {/* User menu / logout */}
         <button

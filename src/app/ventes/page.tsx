@@ -23,6 +23,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import AnimatedModal from '@/components/AnimatedModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import {
   sendInvoiceViaWhatsApp,
   downloadInvoicePdf,
@@ -83,6 +84,7 @@ interface BoutiqueItem {
 export default function VentesPage() {
   const { user, isAdmin, isGerant, isVendeur, activePointVenteId } = useAuth();
   const { showError, showSuccess } = useToast();
+  const { settings } = useSettings();
 
   const [ventes, setVentes] = useState<Vente[]>([]);
   const [boutiquesList, setBoutiquesList] = useState<BoutiqueItem[]>([]);
@@ -452,13 +454,13 @@ export default function VentesPage() {
             <div className="flex justify-between items-start border-b border-slate-200 pb-4">
               <div className="flex items-center gap-3.5">
                 <img
-                  src="/img/logo.jpeg"
-                  alt="Logo Sidibé Services"
+                  src={settings.logoUrl || '/img/logo.jpeg'}
+                  alt={settings.companyName || 'Logo Sidibé Services'}
                   className="w-12 h-12 rounded-xl object-cover border border-amber-500/30 shadow-sm"
                 />
                 <div>
                   <h2 className="text-xl font-black text-slate-900 tracking-wide flex items-center gap-1.5">
-                    SIDIBE <span className="text-amber-600">SERVICES</span>
+                    {settings.companyName || 'SIDIBE SERVICES'}
                   </h2>
                   <p className="text-xs font-bold text-slate-700">
                     {selectedVente?.pointVente?.nom || selectedVente?.pointVenteNom || 'Boutique'}

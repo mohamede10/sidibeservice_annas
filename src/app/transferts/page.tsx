@@ -538,7 +538,7 @@ export default function TransfertsPage() {
                     className="border-t border-slate-800 p-4 space-y-3"
                   >
                     {t.notes && (
-                      <p className="text-xs text-slate-400 italic">📝 {t.notes}</p>
+                      <p className="text-xs text-slate-400 italic"> {t.notes}</p>
                     )}
                     <div className="space-y-2">
                       {t.lignes.map((l) => (

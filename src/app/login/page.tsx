@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
+import { useSettings } from '@/contexts/SettingsContext';
 
 type Particle = {
   width: number;
@@ -41,6 +42,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { showError, showSuccess } = useToast();
+  const { settings } = useSettings();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -471,8 +473,8 @@ export default function LoginPage() {
                   transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
                 />
                 <Image
-                  src="/img/logo.jpeg"
-                  alt="Logo Sidibe Services"
+                  src={settings.logoUrl || '/img/logo.jpeg'}
+                  alt={settings.companyName || 'Logo Sidibe Services'}
                   fill
                   sizes="(max-width: 640px) 96px, 112px"
                   priority

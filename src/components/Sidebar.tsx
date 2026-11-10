@@ -24,8 +24,10 @@ import {
   Store,
   Banknote,
   ShoppingBag,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -45,6 +47,7 @@ const navItems = [
   { href: '/achats', label: 'Achats Fournisseurs', icon: Truck, badge: null, section: 'main' },
   { href: '/depenses', label: 'Dépenses & Charges', icon: TrendingDown, badge: null, section: 'main' },
   { href: '/virements', label: 'Caisse de Virement', icon: Banknote, badge: 'Espèces', section: 'main' },
+  { href: '/parametres', label: 'Paramètres', icon: Settings, badge: null, section: 'main' },
 ];
 
 const adminNavItems = [
@@ -57,6 +60,7 @@ const adminNavItems = [
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const pathname = usePathname();
   const { user, isAdmin, isGerant, activePointVenteNom } = useAuth();
+  const { settings } = useSettings();
 
   const displayName = user?.nom?.split(' ')[0] || 'Admin';
   const displayInitial = displayName[0]?.toUpperCase() || 'A';
@@ -134,15 +138,15 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <Link href="/" className="flex items-center gap-3 group" onClick={() => setIsOpen(false)}>
             <div className="relative w-11 h-11 rounded-2xl overflow-hidden bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:shadow-amber-500/40 transition-all border border-amber-400/30">
               <img
-                src="/img/logo.jpeg"
-                alt="Logo SIDIBE SERVICE"
+                src={settings.logoUrl || '/img/logo.jpeg'}
+                alt={settings.companyName || 'Logo SIDIBE SERVICES'}
                 className="w-full h-full object-cover"
               />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-base tracking-wide text-white group-hover:text-amber-400 transition-colors leading-tight">
-                  SIDIBE SERVICES
+                  {settings.companyName || 'SIDIBE SERVICES'}
                 </span>
               </div>
             </div>
