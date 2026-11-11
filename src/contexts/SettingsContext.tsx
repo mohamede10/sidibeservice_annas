@@ -3,12 +3,36 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 export interface CompanySettings {
+  // Identité de l'entreprise
   companyName: string;
   logoUrl: string;
   description?: string;
   telephone?: string;
   email?: string;
   adresse?: string;
+
+  // Configuration notifications
+  notifEmailActive?: boolean;
+  notifSmsActive?: boolean;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpUser?: string;
+  smtpPassword?: string;
+  smtpFrom?: string;
+  adminEmailNotif?: string;
+
+  // Configuration stock
+  seuilStockFaible?: number;
+
+  // Configuration monnaie & commerce
+  devise?: string;
+  symboleDevise?: string;
+  tvaTaux?: number;
+  tvaActive?: boolean;
+
+  // Configuration sécurité
+  tentativesConnexionMax?: number;
+  dureeSessionHeures?: number;
 }
 
 const defaultSettings: CompanySettings = {
@@ -18,6 +42,25 @@ const defaultSettings: CompanySettings = {
   telephone: '+224 622 48 81 61',
   email: 'sidibeoumar413@gmail.com',
   adresse: 'Kankan • Siguiri • Conakry — République de Guinée',
+  // Notifications
+  notifEmailActive: false,
+  notifSmsActive: true,
+  smtpHost: '',
+  smtpPort: 587,
+  smtpUser: '',
+  smtpPassword: '',
+  smtpFrom: '',
+  adminEmailNotif: '',
+  // Stock
+  seuilStockFaible: 5,
+  // Monnaie
+  devise: 'GNF',
+  symboleDevise: 'GNF',
+  tvaTaux: 18,
+  tvaActive: false,
+  // Sécurité
+  tentativesConnexionMax: 5,
+  dureeSessionHeures: 8,
 };
 
 interface SettingsContextType {

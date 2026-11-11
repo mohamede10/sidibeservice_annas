@@ -11,13 +11,10 @@ import {
   Receipt,
   Users,
   CreditCard,
-  Building2,
   Truck,
   BarChart3,
-  Sparkles,
   ChevronRight,
   ShieldCheck,
-  UserCog,
   ArrowLeftRight,
   Wallet,
   TrendingDown,
@@ -50,9 +47,8 @@ const navItems = [
   { href: '/parametres', label: 'Paramètres', icon: Settings, badge: null, section: 'main' },
 ];
 
+// Boutiques & Dépôts et Utilisateurs & Rôles sont désormais accessibles depuis /parametres
 const adminNavItems = [
-  { href: '/points-de-vente', label: 'Boutiques & Dépôts', icon: Building2, badge: null, section: 'admin' },
-  { href: '/utilisateurs', label: 'Utilisateurs & Rôles', icon: UserCog, badge: null, section: 'admin' },
   { href: '/salaires', label: 'Salaires Vendeurs', icon: Wallet, badge: 'RH', section: 'admin' },
   { href: '/rapports', label: 'Rapports & Finances', icon: BarChart3, badge: null, section: 'admin' },
 ];
@@ -171,7 +167,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           {/* Main Navigation */}
           {visibleNavItems.map(renderNavItem)}
 
-          {/* Admin Section Divider */}
+          {/* Admin Section Divider — Salaires & Rapports uniquement */}
           {(isAdmin || isGerant) && (
             <>
               <div className="pt-3 pb-1">

@@ -4,6 +4,20 @@
   "description": "Décoration, rideaux, linge de lit, tapis et mobilier en Guinée",
   "telephone": "+224 622 48 81 61",
   "email": "sidibeoumar413@gmail.com",
-  "adresse": "Kankan • Siguiri • Conakry — République de Guinée"
+  "adresse": "Kankan • Siguiri • Conakry — République de Guinée",
+  "notifEmailActive": false,
+  "notifSmsActive": true,
+  "smtpHost": "",
+  "smtpPort": 587,
+  "smtpUser": "",
+  "smtpPassword": "",
+  "smtpFrom": "",
+  "adminEmailNotif": "",
+  "seuilStockFaible": 5,
+  "devise": "GNF",
+  "symboleDevise": "GNF",
+  "tvaTaux": 18,
+  "tvaActive": false,
+  "tentativesConnexionMax": 5,
+  "dureeSessionHeures": 8
 }
-
