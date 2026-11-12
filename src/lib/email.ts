@@ -65,7 +65,7 @@ export async function sendEmail(params: {
       });
 
       await transporter.sendMail({
-        from: `"SIDIBE SERVICES" <${smtpUser}>`,
+        from: `"SIDIBE MULTI SERVICES" <${smtpUser}>`,
         to: destinataire,
         subject: params.subject,
         text: params.text || params.subject,
