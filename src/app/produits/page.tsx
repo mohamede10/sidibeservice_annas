@@ -29,7 +29,9 @@ import {
   ArrowDownToLine,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { downloadCsv, stampFilename } from '@/lib/exportCsv';
 import AnimatedModal from '@/components/AnimatedModal';
+import ExportButton from '@/components/ExportButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 
@@ -405,6 +407,42 @@ export default function ProduitsPage() {
     return matchSearch && matchCategory && matchPrice && matchBoutique;
   });
 
+  const handleExportProduits = () => {
+    if (filtered.length === 0) {
+      showWarning('Aucun produit à exporter pour ce filtre.');
+      return;
+    }
+    const rows: Array<Array<string | number | null | undefined>> = [];
+    filtered.forEach((p) => {
+      const variants = p.variantes.length > 0 ? p.variantes : [{ id: 0, prix: 0, quantiteStock: p.totalStock || 0 } as Variante];
+      variants.forEach((v) => {
+        const stockBoutique = effectivePointDeVenteId
+          ? v.stocksParPoint?.find((s) => s.pointDeVenteId === effectivePointDeVenteId)?.quantite ?? 0
+          : v.quantiteStock;
+        const bStats = effectivePointDeVenteId ? p.statsParBoutique?.[effectivePointDeVenteId] : undefined;
+        rows.push([
+          p.nom,
+          p.ref || '',
+          p.categorieNom || '',
+          v.taille || '',
+          v.couleur || '',
+          v.prix ?? '',
+          v.coutAchat ?? '',
+          stockBoutique,
+          bStats?.vendu ?? p.totalVendu ?? '',
+          bStats?.ajoute ?? p.totalAjoute ?? '',
+          effectiveBoutique?.nom || 'Toutes boutiques',
+        ]);
+      });
+    });
+    downloadCsv(
+      stampFilename('produits_stock'),
+      ['Produit', 'Référence', 'Catégorie', 'Taille', 'Couleur', 'Prix vente (GNF)', 'Coût achat (GNF)', 'Stock', 'Qté vendue', 'Qté ajoutée', 'Boutique'],
+      rows
+    );
+    showSuccess(`${rows.length} ligne(s) exportée(s).`, 'Export Excel');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -424,6 +462,7 @@ export default function ProduitsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <ExportButton onExport={handleExportProduits} disabled={loading} count={filtered.length} />
           <button
             onClick={fetchProduits}
             title="Actualiser"

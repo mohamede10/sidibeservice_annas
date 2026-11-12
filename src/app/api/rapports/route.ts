@@ -193,9 +193,12 @@ export async function GET(req: Request) {
       orderBy: { _sum: { total: 'desc' } },
     });
 
-    // Nombre nouveaux clients
+    // Nombre nouveaux clients (filtrés sur la boutique si demandée)
     const nouveauxClients = await prisma.client.count({
-      where: { createdAt: { gte: dateDebut, lte: dateFin } },
+      where: {
+        createdAt: { gte: dateDebut, lte: dateFin },
+        ...(pvId ? { ventes: { some: { pointVenteId: pvId } } } : {}),
+      },
     });
 
     const chiffreAffaires = ventesAgg._sum.total || 0;

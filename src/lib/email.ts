@@ -229,16 +229,16 @@ export async function notifyAdminNewOrderEmail(order: {
       </thead>
       <tbody>
         ${order.items
-          .map(
-            (item) => `
+      .map(
+        (item) => `
           <tr>
             <td>${item.nom}</td>
             <td style="text-align: center;">x${item.quantite}</td>
             <td style="text-align: right; color: #f59e0b;">${(item.prix * item.quantite).toLocaleString('fr-FR')} GNF</td>
           </tr>
         `
-          )
-          .join('')}
+      )
+      .join('')}
       </tbody>
     </table>
 
@@ -330,7 +330,7 @@ export async function notifyAdminVirementEmail(virement: {
     </p>
 
     <div style="text-align: center; margin-top: 24px;">
-      <a href="http://localhost:3000/virements" class="btn">Valider le Virement</a>
+      <a href="https://www.sidibemultiservices.shop/virements" class="btn">Valider le Virement</a>
     </div>
   `;
 

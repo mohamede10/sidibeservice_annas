@@ -175,17 +175,30 @@ function DonutChart({ segments, size = 80 }: { segments: { value: number; color:
 }
 
 export default function RapportsPage() {
-  const { user, activePointVenteId } = useAuth();
+  const { user, isAdmin, isVendeur, activePointVenteId, activePointVenteNom } = useAuth();
   const { showError } = useToast();
   const [period, setPeriod] = useState<Period>('month');
   const [data, setData] = useState<RapportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'ventes' | 'depenses' | 'produits' | 'boutiques'>('overview');
 
+  const boutiqueId = isVendeur
+    ? (user?.pointVenteId ?? activePointVenteId)
+    : (isAdmin ? activePointVenteId : (user?.pointVenteId ?? activePointVenteId));
+  const boutiqueNom = isVendeur
+    ? (user?.pointVenteNom || activePointVenteNom || 'Ma Boutique')
+    : (isAdmin ? (activePointVenteNom || 'Toutes les boutiques') : (user?.pointVenteNom || activePointVenteNom || 'Ma Boutique'));
+
   const fetchRapport = useCallback(async () => {
+    if (isVendeur && !boutiqueId) {
+      setData(null);
+      setLoading(false);
+      showError('Aucune boutique n’est affectée à votre compte.', 'Rapports');
+      return;
+    }
     setLoading(true);
     try {
-      const pvParam = activePointVenteId ? `&pointVenteId=${activePointVenteId}` : '';
+      const pvParam = boutiqueId ? `&pointVenteId=${boutiqueId}` : '';
       const res = await fetch(`/api/rapports?period=${period}${pvParam}`);
       const json = await res.json();
       if (json.success) setData(json);
@@ -196,11 +209,17 @@ export default function RapportsPage() {
     } finally {
       setLoading(false);
     }
-  }, [period, activePointVenteId, showError]);
+  }, [period, boutiqueId, isVendeur, showError]);
 
   useEffect(() => {
     fetchRapport();
   }, [fetchRapport]);
+
+  useEffect(() => {
+    if (!isAdmin && activeTab === 'boutiques') {
+      setActiveTab('overview');
+    }
+  }, [isAdmin, activeTab]);
 
   const kpis = data?.kpis;
 
@@ -266,11 +285,11 @@ export default function RapportsPage() {
   ];
 
   const tabs = [
-    { id: 'overview', label: 'Vue Globale', icon: BarChart3 },
+    { id: 'overview', label: isAdmin && !boutiqueId ? 'Vue Globale' : 'Vue d\'ensemble', icon: BarChart3 },
     { id: 'ventes', label: 'Ventes', icon: ShoppingCart },
     { id: 'depenses', label: 'Dépenses', icon: TrendingDown },
     { id: 'produits', label: 'Produits', icon: Package },
-    { id: 'boutiques', label: 'Boutiques', icon: Building2 },
+    ...(isAdmin && !isVendeur ? [{ id: 'boutiques' as const, label: 'Boutiques', icon: Building2 }] : []),
   ];
 
   const handlePrint = () => {
@@ -287,9 +306,17 @@ export default function RapportsPage() {
               <BarChart3 className="w-6 h-6" />
             </span>
             Rapports Financiers
+            {!isAdmin && (
+              <span className="ml-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {boutiqueNom}
+              </span>
+            )}
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Analyse des performances — {PERIOD_LABELS[period]}
+            {isVendeur
+              ? `Analyse des performances de votre boutique — ${boutiqueNom}`
+              : `Analyse des performances — ${boutiqueId ? boutiqueNom : 'Toutes les boutiques'}`}
+            {' '}— {PERIOD_LABELS[period]}
             {data && (
               <span className="ml-2 text-slate-500 text-xs">
                 ({new Date(data.dateDebut).toLocaleDateString('fr-FR')} — {new Date(data.dateFin).toLocaleDateString('fr-FR')})
@@ -654,7 +681,7 @@ export default function RapportsPage() {
           </motion.div>
         )}
 
-        {activeTab === 'boutiques' && (
+        {activeTab === 'boutiques' && isAdmin && (
           <motion.div
             key="boutiques"
             initial={{ opacity: 0, y: 10 }}

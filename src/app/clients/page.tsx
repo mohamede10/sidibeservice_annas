@@ -24,9 +24,11 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { downloadCsv, stampFilename } from '@/lib/exportCsv';
 import { useToast } from '@/contexts/ToastContext';
 import { useAuth } from '@/contexts/AuthContext';
 import AnimatedModal from '@/components/AnimatedModal';
+import ExportButton from '@/components/ExportButton';
 import { printInvoice, sendInvoiceViaWhatsApp, downloadInvoicePdf, getEmailInvoiceUrl, InvoiceData } from '@/lib/invoicePdf';
 
 interface VenteClient {

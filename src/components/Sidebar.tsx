@@ -44,13 +44,13 @@ const navItems = [
   { href: '/achats', label: 'Achats Fournisseurs', icon: Truck, badge: null, section: 'main' },
   { href: '/depenses', label: 'Dépenses & Charges', icon: TrendingDown, badge: null, section: 'main' },
   { href: '/virements', label: 'Caisse de Virement', icon: Banknote, badge: 'Espèces', section: 'main' },
+  { href: '/rapports', label: 'Rapports & Finances', icon: BarChart3, badge: null, section: 'main' },
   { href: '/parametres', label: 'Paramètres', icon: Settings, badge: null, section: 'main' },
 ];
 
 // Boutiques & Dépôts et Utilisateurs & Rôles sont désormais accessibles depuis /parametres
 const adminNavItems = [
   { href: '/salaires', label: 'Salaires Vendeurs', icon: Wallet, badge: 'RH', section: 'admin' },
-  { href: '/rapports', label: 'Rapports & Finances', icon: BarChart3, badge: null, section: 'admin' },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
@@ -167,7 +167,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           {/* Main Navigation */}
           {visibleNavItems.map(renderNavItem)}
 
-          {/* Admin Section Divider — Salaires & Rapports uniquement */}
+          {/* Admin Section — Salaires (Rapports est dans le menu principal, aussi pour les vendeurs) */}
           {(isAdmin || isGerant) && (
             <>
               <div className="pt-3 pb-1">
