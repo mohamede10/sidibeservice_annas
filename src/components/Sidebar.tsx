@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -22,6 +22,7 @@ import {
   Banknote,
   ShoppingBag,
   Settings,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -53,10 +54,76 @@ const adminNavItems = [
   { href: '/salaires', label: 'Salaires Vendeurs', icon: Wallet, badge: 'RH', section: 'admin' },
 ];
 
+type AlertCounts = {
+  commandes: number;
+  virements: number;
+  transferts: number;
+  produits: number;
+  dettes: number;
+};
+
+const emptyAlertCounts: AlertCounts = {
+  commandes: 0,
+  virements: 0,
+  transferts: 0,
+  produits: 0,
+  dettes: 0,
+};
+
+function countForHref(href: string, counts: AlertCounts): number {
+  switch (href) {
+    case '/':
+      return counts.commandes + counts.virements + counts.transferts + counts.produits + counts.dettes;
+    case '/commandes':
+      return counts.commandes;
+    case '/virements':
+      return counts.virements;
+    case '/transferts':
+      return counts.transferts;
+    case '/produits':
+      return counts.produits;
+    case '/dettes':
+      return counts.dettes;
+    default:
+      return 0;
+  }
+}
+
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const pathname = usePathname();
-  const { user, isAdmin, isGerant, activePointVenteNom } = useAuth();
+  const { user, isAdmin, isGerant, activePointVenteNom, activePointVenteId } = useAuth();
   const { settings } = useSettings();
+  const [alertCounts, setAlertCounts] = useState<AlertCounts>(emptyAlertCounts);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchAlerts = async () => {
+      try {
+        const qs = activePointVenteId ? `?pointVenteId=${activePointVenteId}` : '';
+        const res = await fetch(`/api/menu-alerts${qs}`);
+        const data = await res.json();
+        if (!cancelled && data.success && data.counts) {
+          setAlertCounts({
+            commandes: Number(data.counts.commandes) || 0,
+            virements: Number(data.counts.virements) || 0,
+            transferts: Number(data.counts.transferts) || 0,
+            produits: Number(data.counts.produits) || 0,
+            dettes: Number(data.counts.dettes) || 0,
+          });
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 15000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activePointVenteId]);
 
   const displayName = user?.nom?.split(' ')[0] || 'Admin';
   const displayInitial = displayName[0]?.toUpperCase() || 'A';
@@ -73,35 +140,68 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const renderNavItem = (item: (typeof navItems)[0]) => {
     const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
     const Icon = item.icon;
+    const alertCount = countForHref(item.href, alertCounts);
+    const hasAlert = alertCount > 0;
 
     return (
       <Link key={item.href} href={item.href} onClick={() => setIsOpen(false)}>
         <motion.div
           whileHover={{ x: 4 }}
           whileTap={{ scale: 0.98 }}
-          className={`relative flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all ${isActive
+          className={`relative flex items-center justify-between px-3.5 py-2.5 rounded-xl font-medium text-sm transition-all ${
+            isActive
               ? 'bg-gradient-to-r from-amber-500/20 to-amber-500/5 text-amber-300 border border-amber-500/30 shadow-md shadow-amber-500/5'
+              : hasAlert
+              ? 'text-amber-100 hover:text-white bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20'
               : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900/60'
-            }`}
+          }`}
         >
           <div className="flex items-center gap-3">
-            <div
-              className={`p-1.5 rounded-lg ${isActive ? 'bg-amber-500 text-slate-950 font-bold shadow-sm' : 'bg-slate-900 text-slate-400'
+            <div className="relative">
+              <div
+                className={`p-1.5 rounded-lg transition-all ${
+                  isActive
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : hasAlert
+                    ? 'bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/40 shadow-sm shadow-amber-500/20'
+                    : 'bg-slate-900 text-slate-400'
                 }`}
-            >
-              <Icon className="w-4 h-4" />
+              >
+                <Icon className="w-4 h-4" />
+              </div>
+
+              {/* Point lumineux clignotant sur l'icône du menu UNIQUEMENT s'il y a des notifications */}
+              {hasAlert && (
+                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500 ring-2 ring-slate-950" />
+                </span>
+              )}
             </div>
             <span>{item.label}</span>
           </div>
 
-          {item.badge && (
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-semibold ${isActive ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
+          <div className="flex items-center gap-1.5">
+            {/* Badge clignotant avec cloche et compteur d'alertes */}
+            {hasAlert && (
+              <span
+                className="relative inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-[10px] font-black shadow-md shadow-amber-500/20 animate-pulse"
+                title={`${alertCount} alerte${alertCount > 1 ? 's' : ''} en attente`}
+              >
+                <Bell className="w-2.5 h-2.5 animate-bounce" />
+                <span>{alertCount > 99 ? '99+' : alertCount}</span>
+              </span>
+            )}
+            {item.badge && (
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                  isActive ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'
                 }`}
-            >
-              {item.badge}
-            </span>
-          )}
+              >
+                {item.badge}
+              </span>
+            )}
+          </div>
 
           {isActive && (
             <motion.div
@@ -126,8 +226,9 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
       {/* Sidebar container */}
       <aside
-        className={`fixed top-0 left-0 bottom-0 z-40 w-72 bg-slate-950/95 border-r border-slate-800/80 backdrop-blur-xl flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+        className={`fixed top-0 left-0 bottom-0 z-40 w-72 bg-slate-950/95 border-r border-slate-800/80 backdrop-blur-xl flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-800/60">
